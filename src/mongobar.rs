@@ -232,13 +232,19 @@ impl Mongobar {
             }
         }
 
-        // let
-        //     .run_command(doc! {"ping": 1})
-        //     .await?;
+        let loop_count = self.config.loop_count;
+        let thread_count = self.config.thread_count;
 
-        let gate = Arc::new(tokio::sync::Barrier::new(1));
+        println!(
+            "OPStress [{}] loop_count: {} thread_count: {}",
+            chrono::Local::now().timestamp(),
+            loop_count,
+            thread_count
+        );
+
+        let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];
-        for i in 0..1 {
+        for i in 0..thread_count {
             let gate = gate.clone();
             let mongo_uri = self.config.uri.clone();
             let op_rows = self.op_rows.clone();
@@ -253,7 +259,7 @@ impl Mongobar {
 
                 let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
-                for c in 0..1 {
+                for c in 0..loop_count {
                     for row in &op_rows {
                         match &row.op {
                             op_row::Op::Query => {
@@ -273,11 +279,11 @@ impl Mongobar {
                                     while cursor.advance().await.unwrap() {
                                         len += 1;
                                     }
-                                    println!(
-                                        "Thread[{}] [{}]\tfind {len:?}",
-                                        i,
-                                        chrono::Local::now().timestamp()
-                                    );
+                                    // println!(
+                                    //     "Thread[{}] [{}]\tfind {len:?}",
+                                    //     i,
+                                    //     chrono::Local::now().timestamp()
+                                    // );
                                 }
                             }
                             _ => {}
@@ -310,6 +316,8 @@ impl Mongobar {
                 db.run_command(doc! { "profile": was }).await?;
             }
         }
+
+        println!("OPStress [{}] Done", chrono::Local::now().timestamp(),);
 
         Ok(())
     }

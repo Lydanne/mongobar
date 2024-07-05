@@ -11,3 +11,8 @@ serde_json = "1.0.115"
 serde = { version = "1.0.197", features = ["derive"] }
 bson = "2.11.0"
 chrono = { version = "0.4.38", features = ["serde"] }
+
+[dependencies.educe]
+version = "*"
+features = ["Default"]
+default-features = false
