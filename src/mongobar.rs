@@ -5,90 +5,32 @@ use std::{
     sync::Arc,
 };
 
-use bson::{doc, DateTime, RawDocument};
+use bson::{doc, DateTime};
 
 use mongodb::{bson::Document, Client, Collection, Cursor};
 
 use serde::{Deserialize, Serialize};
 
-use serde_json::Value;
+mod op_row;
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct OpRow {
-    pub id: String,
-    pub op: Op,
-    pub db: String,
-    pub coll: String,
-    pub cmd: Document,
-    pub ns: String,
-    pub ts: i64,
-    pub st: Status,
-}
+mod mongobar_config;
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) enum Op {
-    #[default]
-    None,
-    Insert,
-    Update,
-    Delete,
-    Query,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct OpQuery {
-    pub db: String,
-    pub find: String,
-    pub filter: Document,
-    pub limit: Option<i32>,
-    pub sort: Option<Document>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) enum Status {
-    #[default]
-    None,
-    Pending,
-    Success(StatusSuccess),
-    Failed,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct StatusSuccess {
-    pub rts: i64,
-    pub rms: i64,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct MongobarConfig {
-    pub uri: String,
-    pub db: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct OpState {
-    pub stress_index: i64,
-    pub stress_start_ts: i64,
-    pub stress_end_ts: i64,
-
-    pub record_start_ts: i64,
-    pub record_end_ts: i64,
-}
+mod op_state;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub(crate) struct Mongobar {
     pub(crate) dir: PathBuf,
     pub(crate) name: String,
-    pub(crate) op_rows: Vec<OpRow>,
+    pub(crate) op_rows: Vec<op_row::OpRow>,
 
     pub(crate) op_file_padding: PathBuf,
     pub(crate) op_file_done: PathBuf,
 
     pub(crate) op_state_file: PathBuf,
-    pub(crate) op_state: OpState,
+    pub(crate) op_state: op_state::OpState,
 
     pub(crate) config_file: PathBuf,
-    pub(crate) config: MongobarConfig,
+    pub(crate) config: mongobar_config::MongobarConfig,
 }
 
 impl Mongobar {
@@ -102,11 +44,11 @@ impl Mongobar {
             op_file_padding: cwd.join(PathBuf::from("padding.oplog.json")),
             op_file_done: cwd.join(PathBuf::from("done.oplog.json")),
             config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
-            config: MongobarConfig::default(),
+            config: mongobar_config::MongobarConfig::default(),
             dir,
 
             op_state_file: cwd.join(PathBuf::from("state.json")),
-            op_state: OpState::default(),
+            op_state: op_state::OpState::default(),
         }
     }
 
@@ -161,7 +103,7 @@ impl Mongobar {
         fs::write(&self.op_state_file, content).unwrap();
     }
 
-    pub fn add_row(&mut self, row: OpRow) {
+    pub fn add_row(&mut self, row: op_row::OpRow) {
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -181,7 +123,7 @@ impl Mongobar {
         }
         // let doc_as_json = serde_json::to_string(&doc).unwrap();
         // println!("{}", doc_as_json);
-        let mut row = OpRow::default();
+        let mut row = op_row::OpRow::default();
         let op = doc.get_str("op").unwrap();
         let command = doc.get_document("command").unwrap();
         match op {
@@ -192,7 +134,7 @@ impl Mongobar {
                 row.id = doc.get_str("queryHash").unwrap().to_string();
                 row.ns = ns;
                 row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
-                row.op = Op::Query;
+                row.op = op_row::Op::Query;
                 row.db = command.get_str("$db").unwrap().to_string();
                 row.coll = command.get_str("find").unwrap().to_string();
                 let mut new_cmd = command.clone();
@@ -209,7 +151,7 @@ impl Mongobar {
 
     pub fn load_op_rows(&mut self) {
         let content = fs::read_to_string(&self.op_file_padding).unwrap();
-        let rows: Vec<OpRow> = content
+        let rows: Vec<op_row::OpRow> = content
             .split("\n")
             .filter(|v| !v.is_empty())
             .map(|v| serde_json::from_str(v).unwrap())
@@ -314,7 +256,7 @@ impl Mongobar {
                 for c in 0..1 {
                     for row in &op_rows {
                         match &row.op {
-                            Op::Query => {
+                            op_row::Op::Query => {
                                 let db = client.database(&row.db);
 
                                 let res = db.run_cursor_command(row.cmd.clone()).await;
