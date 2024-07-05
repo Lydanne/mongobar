@@ -1,4 +1,8 @@
-use std::fs::{self, OpenOptions};
+use std::{
+    fs::{self, OpenOptions},
+    sync::Arc,
+    vec,
+};
 use std::{io::Write, path::PathBuf};
 
 use bson::{doc, DateTime, RawDocument};
@@ -7,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
-struct RecRow {
+struct OpRow {
     pub id: String,
     pub op: Op,
     pub ns: String,
-    pub ts: u64,
+    pub ts: i64,
     pub st: Status,
 }
 
@@ -29,9 +33,9 @@ enum Op {
 struct OpQuery {
     pub db: String,
     pub find: String,
-    pub filter: Value,
+    pub filter: Document,
     pub limit: Option<i32>,
-    pub sort: Option<Value>,
+    pub sort: Option<Document>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -45,8 +49,8 @@ enum Status {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 struct StatusSuccess {
-    pub rts: u64,
-    pub rms: u64,
+    pub rts: i64,
+    pub rms: i64,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -56,13 +60,26 @@ struct MongobarConfig {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
+struct OpState {
+    pub stress_index: i64,
+    pub stress_start_ts: i64,
+    pub stress_end_ts: i64,
+
+    pub record_start_ts: i64,
+    pub record_end_ts: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
 struct Mongobar {
     dir: PathBuf,
     name: String,
-    rows: Vec<RecRow>,
+    op_rows: Vec<OpRow>,
 
     op_file_padding: PathBuf,
     op_file_done: PathBuf,
+
+    op_state_file: PathBuf,
+    op_state: OpState,
 
     config_file: PathBuf,
     config: MongobarConfig,
@@ -71,16 +88,19 @@ struct Mongobar {
 impl Mongobar {
     pub fn new(name: &str) -> Self {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
-        let dir = cur_cwd.join("runtime");
+        let dir: PathBuf = cur_cwd.join("runtime");
         let cwd: PathBuf = dir.join(name);
         Self {
             name: name.to_string(),
-            rows: Vec::new(),
+            op_rows: Vec::new(),
             op_file_padding: cwd.join(PathBuf::from("padding.oplog.json")),
             op_file_done: cwd.join(PathBuf::from("done.oplog.json")),
             config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
             config: MongobarConfig::default(),
             dir,
+
+            op_state_file: cwd.join(PathBuf::from("state.json")),
+            op_state: OpState::default(),
         }
     }
 
@@ -91,25 +111,51 @@ impl Mongobar {
     pub fn init(mut self) -> Self {
         let cwd = self.cwd();
 
-        if cwd.exists() {
-            fs::remove_dir_all(&cwd).unwrap();
+        if !cwd.exists() {
+            fs::create_dir_all(&cwd).unwrap();
+            fs::write(cwd.clone().join(&self.op_file_padding), "").unwrap();
+            fs::write(cwd.clone().join(&self.op_file_done), "").unwrap();
         }
 
-        fs::create_dir_all(&cwd).unwrap();
-        fs::write(cwd.clone().join(&self.op_file_padding), "").unwrap();
-        fs::write(cwd.clone().join(&self.op_file_done), "").unwrap();
-
         self.load_config();
+        self.load_state();
+        self.load_op_rows();
 
         return self;
     }
 
-    fn load_config(&mut self) {
-        let content = fs::read_to_string(&self.config_file).unwrap();
+    pub fn clean(self) -> Self {
+        fs::remove_dir_all(&self.cwd()).unwrap();
+        Self::new(&self.name).init()
+    }
+
+    pub fn load_config(&mut self) {
+        if !self.config_file.exists() {
+            self.save_config();
+        }
+        let content: String = fs::read_to_string(&self.config_file).unwrap();
         self.config = serde_json::from_str(&content).unwrap();
     }
 
-    pub fn add_row(&mut self, row: RecRow) {
+    pub fn save_config(&self) {
+        let content = serde_json::to_string(&self.config).unwrap();
+        fs::write(&self.config_file, content).unwrap();
+    }
+
+    pub fn load_state(&mut self) {
+        if !self.op_state_file.exists() {
+            self.save_state();
+        }
+        let content = fs::read_to_string(&self.op_state_file).unwrap();
+        self.op_state = serde_json::from_str(&content).unwrap();
+    }
+
+    pub fn save_state(&self) {
+        let content: String = serde_json::to_string(&self.op_state).unwrap();
+        fs::write(&self.op_state_file, content).unwrap();
+    }
+
+    pub fn add_row(&mut self, row: OpRow) {
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -119,35 +165,38 @@ impl Mongobar {
         let content = serde_json::to_string(&row.clone()).unwrap();
         writeln!(file, "{}", content).unwrap();
 
-        self.rows.push(row);
+        self.op_rows.push(row);
     }
 
-    pub fn add_row_by_profile(&mut self, doc: &RawDocument) {
+    pub fn add_row_by_profile(&mut self, doc: &Document) {
         let ns = doc.get_str("ns").unwrap().to_string();
         if ns.contains("system.profile") {
             return;
         }
         // let doc_as_json = serde_json::to_string(&doc).unwrap();
         // println!("{}", doc_as_json);
-        let mut row = RecRow::default();
+        let mut row = OpRow::default();
         let op = doc.get_str("op").unwrap();
         let command = doc.get_document("command").unwrap();
         match op {
             "query" => {
+                if let Err(_) = doc.get_str("queryHash") {
+                    return;
+                }
                 row.id = doc.get_str("queryHash").unwrap().to_string();
                 row.ns = ns;
-                row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as u64;
+                row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
                 row.op = Op::Query(OpQuery {
                     db: command.get_str("$db").unwrap().to_string(),
                     find: command.get_str("find").unwrap().to_string(),
-                    filter: serde_json::to_value(&command.get_document("filter").unwrap()).unwrap(),
+                    filter: command.get_document("filter").unwrap().clone(),
                     limit: if let Ok(v) = command.get_i32("limit") {
                         Some(v)
                     } else {
                         None
                     },
                     sort: if let Ok(v) = command.get_document("sort") {
-                        Some(serde_json::to_value(&v).unwrap())
+                        Some(v.clone())
                     } else {
                         None
                     },
@@ -159,6 +208,16 @@ impl Mongobar {
         self.add_row(row);
     }
 
+    pub fn load_op_rows(&mut self) {
+        let content = fs::read_to_string(&self.op_file_padding).unwrap();
+        let rows: Vec<OpRow> = content
+            .split("\n")
+            .filter(|v| !v.is_empty())
+            .map(|v| serde_json::from_str(v).unwrap())
+            .collect();
+
+        self.op_rows = rows;
+    }
     /// 录制逻辑：
     /// 1. 【程序】标记开始时间 毫秒
     /// 2. 【人工】操作具体业务
@@ -170,6 +229,10 @@ impl Mongobar {
         &mut self,
         time_range: (DateTime, DateTime),
     ) -> Result<(), anyhow::Error> {
+        if self.op_state.record_end_ts > 0 {
+            panic!("已经录制过了，不能重复录制，请先调用 clean 清理数据");
+        }
+
         let start_time = time_range.0;
         let end_time = time_range.1;
         let client = Client::with_uri_str(&self.config.uri).await?;
@@ -190,18 +253,19 @@ impl Mongobar {
         let mut cursor: Cursor<Document> = c.find(query).await?;
 
         while cursor.advance().await? {
-            let v = cursor.current();
+            let v = cursor.deserialize_current().unwrap();
             self.add_row_by_profile(&v);
             // let doc_as_json = serde_json::to_string(&v)?;
             // println!("{}", doc_as_json);
         }
 
+        self.op_state.record_start_ts = start_time.timestamp_millis() as i64;
+        self.op_state.record_end_ts = end_time.timestamp_millis() as i64;
+        self.save_state();
+
         Ok(())
     }
-}
 
-#[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
     // 执行录制好的压测文件：
     // 1. 【程序】读取文件
     // 2. 【程序】创建 1000 个线程，并预分配好每个线程的操作
@@ -210,19 +274,127 @@ async fn main() -> Result<(), anyhow::Error> {
     // 5. 【程序】等待所有线程结束
     // 6. 【程序】标记结束时间 毫秒
     // 7. 【程序】计算分析
+    pub async fn op_stress(&mut self) -> Result<(), anyhow::Error> {
+        // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
+        // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
+
+        let mongo_uri = self.config.uri.clone();
+
+        let client = Client::with_uri_str(mongo_uri).await.unwrap();
+        let db = client.database(&self.config.db);
+
+        let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
+        println!("{:?}", cur_profile);
+
+        if let Ok(was) = cur_profile.get_i32("was") {
+            if was != 0 {
+                db.run_command(doc! { "profile": 0 }).await?;
+            }
+        }
+
+        // let
+        //     .run_command(doc! {"ping": 1})
+        //     .await?;
+
+        let gate = Arc::new(tokio::sync::Barrier::new(1000));
+        let mut handles = vec![];
+        for i in 0..1000 {
+            let gate = gate.clone();
+            let mongo_uri = self.config.uri.clone();
+            let op_rows = self.op_rows.clone();
+            handles.push(tokio::spawn(async move {
+                println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
+                gate.wait().await;
+                println!(
+                    "Thread[{}] [{}]\tstart",
+                    i,
+                    chrono::Local::now().timestamp()
+                );
+
+                let client = Client::with_uri_str(mongo_uri).await.unwrap();
+
+                for c in 0..1000 {
+                    for row in &op_rows {
+                        match &row.op {
+                            Op::Query(op_query) => {
+                                let db = client.database(&op_query.db);
+                                let c: Collection<Document> = db.collection(&op_query.find);
+                                let query = op_query.filter.clone();
+                                let mut exec_find = c.find(query);
+                                if let Some(limit) = op_query.limit {
+                                    exec_find = exec_find.limit(limit.into());
+                                }
+                                if let Some(sort) = &op_query.sort {
+                                    exec_find = exec_find.sort(sort.clone());
+                                }
+
+                                let res = exec_find.await;
+
+                                if let Ok(mut cursor) = res {
+                                    let mut len = 0;
+                                    while cursor.advance().await.unwrap() {
+                                        len += 1;
+                                    }
+                                    println!(
+                                        "Thread[{}] [{}]\tfind {len:?}",
+                                        i,
+                                        chrono::Local::now().timestamp()
+                                    );
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                println!("Thread[{}] [{}]\tend", i, chrono::Local::now().timestamp());
+            }));
+        }
+
+        let stress_start_time: i64 = chrono::Local::now().timestamp();
+        self.op_state.stress_start_ts = stress_start_time;
+        self.save_state();
+
+        let mut count = 0;
+        for handle in handles {
+            handle.await?;
+            count += 1;
+            self.op_state.stress_index = count;
+            self.save_state();
+        }
+
+        let stress_end_time = chrono::Local::now().timestamp();
+        self.op_state.stress_end_ts = stress_end_time;
+        self.save_state();
+
+        if let Ok(was) = cur_profile.get_i32("was") {
+            if was != 0 {
+                db.run_command(doc! { "profile": was }).await?;
+            }
+        }
+
+        Ok(())
+    }
 
     // 恢复压测前状态
     // 1. 【程序】读取上面标记的时间
     // 2. 【程序】通过时间拉取所有的 oplog.rs
     // 3. 【程序】反向执行所有的操作
+    pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+}
 
-    Mongobar::new("qxg")
-        .init()
-        .op_record((
-            DateTime::parse_rfc3339_str("2024-07-03T10:54:18.837Z").unwrap(),
-            DateTime::parse_rfc3339_str("2024-07-05T10:54:18.838Z").unwrap(),
-        ))
-        .await?;
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    // Mongobar::new("qxg")
+    //     .clean()
+    //     .op_record((
+    //         DateTime::parse_rfc3339_str("2024-07-03T10:54:18.837Z").unwrap(),
+    //         DateTime::parse_rfc3339_str("2024-07-05T10:54:18.838Z").unwrap(),
+    //     ))
+    //     .await?;
+    Mongobar::new("qxg").init().op_stress().await?;
 
     Ok(())
 }
