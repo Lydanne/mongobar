@@ -14,6 +14,9 @@ use serde_json::Value;
 struct OpRow {
     pub id: String,
     pub op: Op,
+    pub db: String,
+    pub coll: String,
+    pub cmd: Document,
     pub ns: String,
     pub ts: i64,
     pub st: Status,
@@ -26,7 +29,7 @@ enum Op {
     Insert,
     Update,
     Delete,
-    Query(OpQuery),
+    Query,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -186,21 +189,14 @@ impl Mongobar {
                 row.id = doc.get_str("queryHash").unwrap().to_string();
                 row.ns = ns;
                 row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
-                row.op = Op::Query(OpQuery {
-                    db: command.get_str("$db").unwrap().to_string(),
-                    find: command.get_str("find").unwrap().to_string(),
-                    filter: command.get_document("filter").unwrap().clone(),
-                    limit: if let Ok(v) = command.get_i32("limit") {
-                        Some(v)
-                    } else {
-                        None
-                    },
-                    sort: if let Ok(v) = command.get_document("sort") {
-                        Some(v.clone())
-                    } else {
-                        None
-                    },
-                });
+                row.op = Op::Query;
+                row.db = command.get_str("$db").unwrap().to_string();
+                row.coll = command.get_str("find").unwrap().to_string();
+                let mut new_cmd = command.clone();
+                new_cmd.remove("lsid");
+                new_cmd.remove("$clusterTime");
+                new_cmd.remove("$db");
+                row.cmd = new_cmd
             }
             _ => {}
         }
@@ -284,7 +280,6 @@ impl Mongobar {
         let db = client.database(&self.config.db);
 
         let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
-        println!("{:?}", cur_profile);
 
         if let Ok(was) = cur_profile.get_i32("was") {
             if was != 0 {
@@ -296,9 +291,9 @@ impl Mongobar {
         //     .run_command(doc! {"ping": 1})
         //     .await?;
 
-        let gate = Arc::new(tokio::sync::Barrier::new(1000));
+        let gate = Arc::new(tokio::sync::Barrier::new(1));
         let mut handles = vec![];
-        for i in 0..1000 {
+        for i in 0..1 {
             let gate = gate.clone();
             let mongo_uri = self.config.uri.clone();
             let op_rows = self.op_rows.clone();
@@ -313,23 +308,21 @@ impl Mongobar {
 
                 let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
-                for c in 0..1000 {
+                for c in 0..1 {
                     for row in &op_rows {
                         match &row.op {
-                            Op::Query(op_query) => {
-                                let db = client.database(&op_query.db);
-                                let c: Collection<Document> = db.collection(&op_query.find);
-                                let query = op_query.filter.clone();
-                                let mut exec_find = c.find(query);
-                                if let Some(limit) = op_query.limit {
-                                    exec_find = exec_find.limit(limit.into());
-                                }
-                                if let Some(sort) = &op_query.sort {
-                                    exec_find = exec_find.sort(sort.clone());
-                                }
+                            Op::Query => {
+                                let db = client.database(&row.db);
 
-                                let res = exec_find.await;
-
+                                let res = db.run_cursor_command(row.cmd.clone()).await;
+                                if let Err(e) = &res {
+                                    println!(
+                                        "Thread[{}] [{}]\t err {}",
+                                        i,
+                                        chrono::Local::now().timestamp(),
+                                        e
+                                    );
+                                }
                                 if let Ok(mut cursor) = res {
                                     let mut len = 0;
                                     while cursor.advance().await.unwrap() {
