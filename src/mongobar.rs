@@ -260,6 +260,12 @@ impl Mongobar {
                 let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
                 for c in 0..loop_count {
+                    println!(
+                        "Thread[{}] [{}]\tloop {}",
+                        i,
+                        chrono::Local::now().timestamp(),
+                        c,
+                    );
                     for row in &op_rows {
                         match &row.op {
                             op_row::Op::Query => {
