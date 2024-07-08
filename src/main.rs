@@ -1,18 +1,49 @@
 use bson::DateTime;
+use clap::Parser;
+use commands::{Cli, Commands};
 use tokio::runtime::Builder;
 
+mod commands;
 mod mongobar;
 
 async fn boot() -> Result<(), Box<dyn std::error::Error>> {
-    // mongobar::Mongobar::new("qxg")
-    //     .clean()
-    //     .op_record((
-    //         DateTime::parse_rfc3339_str("2024-07-08T00:00:00.837Z").unwrap(),
-    //         DateTime::parse_rfc3339_str("2024-07-09T00:00:00.838Z").unwrap(),
-    //     ))
-    //     .await?;
+    let cli = Cli::parse();
 
-    mongobar::Mongobar::new("qxg").init().op_stress().await?;
+    match cli.commands {
+        Commands::OPRecord(op_record) => {
+            let time_range: Vec<_> = op_record
+                .time_range
+                .split_whitespace()
+                .map(|s| DateTime::parse_rfc3339_str(s).unwrap())
+                .collect();
+            let start = time_range[0];
+            let end = time_range[1];
+            if op_record.force {
+                mongobar::Mongobar::new(&op_record.target)
+                    .clean()
+                    .op_record((start, end))
+                    .await?;
+            } else {
+                mongobar::Mongobar::new(&op_record.target)
+                    .init()
+                    .op_record((start, end))
+                    .await?;
+            }
+
+            println!(
+                "OPRecord done output to `./runtime/{}/*`.",
+                op_record.target
+            );
+        }
+        Commands::OPStress(op_stress) => {
+            mongobar::Mongobar::new(&op_stress.target)
+                .init()
+                .op_stress()
+                .await?;
+            println!("OPStress [{}] Done", chrono::Local::now().timestamp());
+        }
+    }
+
     Ok(())
 }
 

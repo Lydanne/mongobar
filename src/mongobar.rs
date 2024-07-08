@@ -148,7 +148,7 @@ impl Mongobar {
             }
             _ => {}
         }
-        println!("{:?}", row);
+        // println!("{:?}", row);
         self.add_row(row);
     }
 
@@ -174,7 +174,7 @@ impl Mongobar {
         time_range: (DateTime, DateTime),
     ) -> Result<(), anyhow::Error> {
         if self.op_state.record_end_ts > 0 {
-            panic!("已经录制过了，不能重复录制，请先调用 clean 清理数据");
+            panic!("[OPRecord] 已经录制过了，不能重复录制，请先调用 clean 清理数据");
         }
 
         let start_time = time_range.0;
@@ -372,8 +372,6 @@ impl Mongobar {
                 db.run_command(doc! { "profile": was }).await?;
             }
         }
-
-        println!("OPStress [{}] Done", chrono::Local::now().timestamp(),);
 
         Ok(())
     }
