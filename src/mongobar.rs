@@ -10,7 +10,7 @@ use std::{
 
 use bson::{doc, DateTime};
 
-use mongodb::{bson::Document, Client, Collection, Cursor};
+use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
 use serde::{Deserialize, Serialize};
 
@@ -222,9 +222,15 @@ impl Mongobar {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
         // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
 
+        let loop_count = self.config.loop_count;
+        let thread_count = self.config.thread_count;
+
         let mongo_uri = self.config.uri.clone();
 
-        let client = Client::with_uri_str(mongo_uri).await.unwrap();
+        let mut options = ClientOptions::parse(&mongo_uri).await.unwrap();
+        options.max_pool_size = Some(thread_count);
+        options.min_pool_size = Some(thread_count);
+        let client = Arc::new(Client::with_options(options).unwrap());
         let db = client.database(&self.config.db);
 
         let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
@@ -234,9 +240,6 @@ impl Mongobar {
                 db.run_command(doc! { "profile": 0 }).await?;
             }
         }
-
-        let loop_count = self.config.loop_count;
-        let thread_count = self.config.thread_count;
 
         println!(
             "OPStress [{}] loop_count: {} thread_count: {}",
@@ -296,13 +299,13 @@ impl Mongobar {
 
         for i in 0..thread_count {
             let gate = gate.clone();
-            let mongo_uri = self.config.uri.clone();
             let op_rows = self.op_rows.clone();
 
             let out_size = out_size.clone();
             let in_size = in_size.clone();
             let query_count = query_count.clone();
             let progress = progress.clone();
+            let client = Arc::clone(&client);
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 gate.wait().await;
@@ -312,7 +315,7 @@ impl Mongobar {
                 //     chrono::Local::now().timestamp()
                 // );
 
-                let client = Client::with_uri_str(mongo_uri).await.unwrap();
+                // let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
                 for c in 0..loop_count {
                     // println!(
