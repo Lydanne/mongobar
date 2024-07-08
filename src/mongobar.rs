@@ -359,12 +359,8 @@ impl Mongobar {
         self.op_state.stress_start_ts = stress_start_time;
         self.save_state();
 
-        let mut count = 0;
         for handle in handles {
             handle.await?;
-            count += 1;
-            self.op_state.stress_index = count;
-            self.save_state();
         }
 
         let stress_end_time = chrono::Local::now().timestamp();
