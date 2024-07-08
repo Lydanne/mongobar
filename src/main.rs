@@ -49,7 +49,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
 
 fn main() {
     let runtime = Builder::new_multi_thread()
-        .worker_threads(100) // 设置工作线程数
+        .worker_threads(16) // 设置工作线程数
         .enable_all()
         .build()
         .unwrap();
