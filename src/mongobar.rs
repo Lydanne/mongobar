@@ -2,7 +2,10 @@ use std::{
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use bson::{doc, DateTime};
@@ -73,7 +76,7 @@ impl Mongobar {
     }
 
     pub fn clean(self) -> Self {
-        fs::remove_dir_all(&self.cwd()).unwrap();
+        let _ = fs::remove_dir_all(&self.cwd());
         Self::new(&self.name).init()
     }
 
@@ -244,32 +247,78 @@ impl Mongobar {
 
         let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];
+
+        let query_count = Arc::new(AtomicUsize::new(0));
+        let in_size = Arc::new(AtomicUsize::new(0));
+        let out_size = Arc::new(AtomicUsize::new(0));
+
+        tokio::spawn({
+            let query_count = query_count.clone();
+            let in_size = in_size.clone();
+            let out_size = out_size.clone();
+            async move {
+                let mut last_query_count = 0;
+                let mut last_in_size = 0;
+                let mut last_out_size = 0;
+
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    let query_count = query_count.load(Ordering::Relaxed);
+                    let in_size = in_size.load(Ordering::Relaxed);
+                    let out_size = out_size.load(Ordering::Relaxed);
+                    // println!(
+                    //     "OPStress [{}] query_count: {} in_size: {} out_size: {}",
+                    //     chrono::Local::now().timestamp(),
+                    //     query_count,
+                    //     in_size,
+                    //     out_size
+                    // );
+                    println!(
+                        "OPStress [{}] count: {} ({:.2},{:.2})MB/s",
+                        chrono::Local::now().timestamp(),
+                        query_count - last_query_count,
+                        bytes_to_mb(in_size - last_in_size),
+                        bytes_to_mb(out_size - last_out_size),
+                    );
+                    last_query_count = query_count;
+                    last_in_size = in_size;
+                    last_out_size = out_size;
+                }
+            }
+        });
+
         for i in 0..thread_count {
             let gate = gate.clone();
             let mongo_uri = self.config.uri.clone();
             let op_rows = self.op_rows.clone();
+
+            let out_size = out_size.clone();
+            let in_size = in_size.clone();
+            let query_count = query_count.clone();
             handles.push(tokio::spawn(async move {
-                println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
+                // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 gate.wait().await;
-                println!(
-                    "Thread[{}] [{}]\tstart",
-                    i,
-                    chrono::Local::now().timestamp()
-                );
+                // println!(
+                //     "Thread[{}] [{}]\tstart",
+                //     i,
+                //     chrono::Local::now().timestamp()
+                // );
 
                 let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
                 for c in 0..loop_count {
-                    println!(
-                        "Thread[{}] [{}]\tloop {}",
-                        i,
-                        chrono::Local::now().timestamp(),
-                        c,
-                    );
+                    // println!(
+                    //     "Thread[{}] [{}]\tloop {}",
+                    //     i,
+                    //     chrono::Local::now().timestamp(),
+                    //     c,
+                    // );
                     for row in &op_rows {
                         match &row.op {
                             op_row::Op::Query => {
                                 let db = client.database(&row.db);
+                                query_count.fetch_add(1, Ordering::Relaxed);
+                                out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
 
                                 let res = db.run_cursor_command(row.cmd.clone()).await;
                                 if let Err(e) = &res {
@@ -281,15 +330,12 @@ impl Mongobar {
                                     );
                                 }
                                 if let Ok(mut cursor) = res {
-                                    let mut len = 0;
                                     while cursor.advance().await.unwrap() {
-                                        len += 1;
+                                        in_size.fetch_add(
+                                            cursor.current().as_bytes().len(),
+                                            Ordering::Relaxed,
+                                        );
                                     }
-                                    // println!(
-                                    //     "Thread[{}] [{}]\tfind {len:?}",
-                                    //     i,
-                                    //     chrono::Local::now().timestamp()
-                                    // );
                                 }
                             }
                             _ => {}
@@ -297,7 +343,7 @@ impl Mongobar {
                     }
                 }
 
-                println!("Thread[{}] [{}]\tend", i, chrono::Local::now().timestamp());
+                // println!("Thread[{}] [{}]\tend", i, chrono::Local::now().timestamp());
             }));
         }
 
@@ -335,4 +381,8 @@ impl Mongobar {
     pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
         Ok(())
     }
+}
+
+fn bytes_to_mb(bytes: usize) -> f64 {
+    bytes as f64 / 1024.0 / 1024.0
 }
