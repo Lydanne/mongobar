@@ -274,7 +274,7 @@ impl Mongobar {
                     //     out_size
                     // );
                     println!(
-                        "OPStress [{}] count: {} ({:.2},{:.2})MB/s",
+                        "OPStress [{}] count: {}/s io: ({:.2},{:.2})MB/s",
                         chrono::Local::now().timestamp(),
                         query_count - last_query_count,
                         bytes_to_mb(in_size - last_in_size),
@@ -330,12 +330,11 @@ impl Mongobar {
                                     );
                                 }
                                 if let Ok(mut cursor) = res {
+                                    let mut sum = 0;
                                     while cursor.advance().await.unwrap() {
-                                        in_size.fetch_add(
-                                            cursor.current().as_bytes().len(),
-                                            Ordering::Relaxed,
-                                        );
+                                        sum += cursor.current().as_bytes().len();
                                     }
+                                    in_size.fetch_add(sum, Ordering::Relaxed);
                                 }
                             }
                             _ => {}
