@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 #[clap(
     name = "mongobar",
     version = "0.0.1",
-    author = "wmc",
+    author = "@xgj/wmc",
     about = "mongo bar cli tool"
 )]
 pub struct Cli {
