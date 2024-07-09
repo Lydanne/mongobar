@@ -25,15 +25,6 @@ pub(crate) enum Op {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct OpQuery {
-    pub db: String,
-    pub find: String,
-    pub filter: Document,
-    pub limit: Option<i32>,
-    pub sort: Option<Document>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub(crate) enum Status {
     #[default]
     None,

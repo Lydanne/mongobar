@@ -50,8 +50,8 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
-    if let Ok(RUSTFLAGS) = env::var("RUSTFLAGS") {
-        if RUSTFLAGS.contains("tokio_unstable") {
+    if let Ok(rustflags) = env::var("RUSTFLAGS") {
+        if rustflags.contains("tokio_unstable") {
             console_subscriber::init();
         }
     }
