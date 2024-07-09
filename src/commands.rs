@@ -19,6 +19,9 @@ pub enum Commands {
 
     /// stress test OPRecord find operation
     OPStress(OPStress),
+
+    /// start a tui.
+    UI(UI),
 }
 
 #[derive(clap::Parser, Debug)]
@@ -37,6 +40,12 @@ pub struct OPRecord {
 
 #[derive(clap::Parser, Debug)]
 pub struct OPStress {
+    /// eg: qxg
+    pub target: String,
+}
+
+#[derive(clap::Parser, Debug)]
+pub struct UI {
     /// eg: qxg
     pub target: String,
 }

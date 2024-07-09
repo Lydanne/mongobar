@@ -15,6 +15,8 @@ use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor
 
 use serde::{Deserialize, Serialize};
 
+use crate::ui;
+
 mod op_row;
 
 mod mongobar_config;
@@ -415,6 +417,18 @@ impl Mongobar {
     // 2. 【程序】通过时间拉取所有的 oplog.rs
     // 3. 【程序】反向执行所有的操作
     pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    pub async fn ui(self) -> Result<(), anyhow::Error> {
+        let mongobar = if self.op_workdir.exists() {
+            self
+        } else {
+            self.init()
+        };
+
+        ui::main();
+
         Ok(())
     }
 }

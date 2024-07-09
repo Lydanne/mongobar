@@ -7,6 +7,7 @@ use tokio::runtime::Builder;
 
 mod commands;
 mod mongobar;
+mod ui;
 
 async fn boot() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -43,6 +44,9 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 .op_stress()
                 .await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
+        }
+        Commands::UI(ui) => {
+            mongobar::Mongobar::new(&ui.target).ui().await?;
         }
     }
 
