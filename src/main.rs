@@ -1,3 +1,5 @@
+use std::env;
+
 use bson::DateTime;
 use clap::Parser;
 use commands::{Cli, Commands};
@@ -48,6 +50,12 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
+    if let Ok(RUST_LOG) = env::var("RUST_LOG") {
+        if RUST_LOG.contains("tokio_unstable") {
+            console_subscriber::init();
+        }
+    }
+
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
     runtime.block_on(async {
