@@ -202,8 +202,48 @@ fn run_app<B: Backend>(
 fn ui(frame: &mut Frame, app: &App) {
     let area = frame.size();
 
-    // if
+    if app.get_tabs_path_string().contains("Stress") {
+        render_stress_view(frame, area, app);
+    } else if app.get_tabs_path_string().contains("Replay") {
+        render_replay_view(frame, area, app);
+    } else {
+        render_main_view(frame, area, app);
+    }
+}
 
+fn render_replay_view(frame: &mut Frame, area: Rect, app: &App) {
+    let [tab, content] =
+        Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
+
+    render_tabs(frame, tab, app);
+    render_title(frame, content, app, "will realize soon...");
+}
+
+fn render_main_view(frame: &mut Frame, area: Rect, app: &App) {
+    let [tab, content] =
+        Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
+
+    render_tabs(frame, tab, app);
+    render_title(frame, content, app, "Welcome to Mongobar");
+}
+
+fn render_title(f: &mut Frame, area: Rect, app: &App, title: &str) {
+    let block = Block::new().borders(Borders::ALL);
+    f.render_widget(block, area);
+    let [_, title_block, _] = Layout::vertical([
+        Constraint::Percentage(50),
+        Constraint::Length(2),
+        Constraint::Percentage(50),
+    ])
+    .areas(area);
+    let title = Paragraph::new(title)
+        .style(Style::default().fg(Color::LightGreen))
+        .alignment(Alignment::Center);
+
+    f.render_widget(title, title_block);
+}
+
+fn render_stress_view(frame: &mut Frame, area: Rect, app: &App) {
     let [tab, content] =
         Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
     let [chart, progress, log] = Layout::vertical([
