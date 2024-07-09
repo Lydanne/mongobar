@@ -321,7 +321,7 @@ impl Mongobar {
             }
         });
 
-        for _ in 0..thread_count {
+        for i in 0..thread_count {
             let gate = gate.clone();
             let op_rows = self.op_rows.clone();
 
@@ -362,14 +362,14 @@ impl Mongobar {
                                 let end = chrono::Local::now().timestamp_millis();
                                 cost_ms.fetch_add((end - start) as usize, Ordering::Relaxed);
                                 query_count.fetch_add(1, Ordering::Relaxed);
-                                // if let Err(e) = &res {
-                                //     println!(
-                                //         "Thread[{}] [{}]\t err {}",
-                                //         i,
-                                //         chrono::Local::now().timestamp(),
-                                //         e
-                                //     );
-                                // }
+                                if let Err(e) = &res {
+                                    println!(
+                                        "OPStress [{}] [{}]\t err {}",
+                                        chrono::Local::now().timestamp(),
+                                        i,
+                                        e
+                                    );
+                                }
                                 // if let Ok(mut cursor) = res {
                                 //     let mut sum = 0;
                                 //     while cursor.advance().await.unwrap() {
