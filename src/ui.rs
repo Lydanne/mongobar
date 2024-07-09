@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    io,
+    io, thread,
     time::{Duration, Instant},
 };
 
@@ -22,6 +22,7 @@ use ratatui::{
         ListItem, Paragraph,
     },
 };
+use tokio::runtime::Builder;
 
 use crate::mongobar::Mongobar;
 
@@ -109,7 +110,7 @@ impl App {
             .iter()
             .map(|(tab, _)| tab.clone().to_string())
             .collect::<Vec<_>>()
-            .join(" / ")
+            .join(" > ")
     }
 }
 
@@ -193,7 +194,24 @@ fn run_app<B: Backend>(
                         } else if tab.to_string().contains("Start") {
                             app.active_tabs =
                                 vec!["Stop".red().bold(), "Boost+".yellow(), "Boost-".yellow()];
+                            app.tabs_path.push((tab, old));
                             app.active_tab = 0;
+                        }
+
+                        if app.get_tabs_path_string().starts_with("Stress > Start") {
+                            let target = app.mongobar.name.clone();
+
+                            thread::spawn(move || {
+                                let runtime =
+                                    Builder::new_multi_thread().enable_all().build().unwrap();
+
+                                runtime.block_on(async {
+                                    let r = Mongobar::new(&target).init().op_stress().await;
+                                    if let Err(err) = r {
+                                        eprintln!("Error: {}", err);
+                                    }
+                                });
+                            });
                         }
                     }
                 }
