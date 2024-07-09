@@ -48,11 +48,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
-    let runtime = Builder::new_multi_thread()
-        .worker_threads(16) // 设置工作线程数
-        .enable_all()
-        .build()
-        .unwrap();
+    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
     runtime.block_on(async {
         let r = boot().await;
