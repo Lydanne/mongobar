@@ -6,6 +6,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    thread,
 };
 
 use bson::{doc, DateTime};
@@ -251,30 +252,45 @@ impl Mongobar {
         let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];
 
+        let boot_worker = Arc::new(AtomicUsize::new(0));
         let query_count = Arc::new(AtomicUsize::new(0));
-        let in_size = Arc::new(AtomicUsize::new(0));
-        let out_size = Arc::new(AtomicUsize::new(0));
+        // let in_size = Arc::new(AtomicUsize::new(0));
+        // let out_size = Arc::new(AtomicUsize::new(0));
+        let cost_ms = Arc::new(AtomicUsize::new(0));
         let progress = Arc::new(AtomicUsize::new(0));
         let progress_total =
             (self.op_rows.len() * loop_count as usize * thread_count as usize) as usize;
 
-        tokio::spawn({
+        thread::spawn({
             let query_count = query_count.clone();
-            let in_size = in_size.clone();
-            let out_size = out_size.clone();
+            // let in_size = in_size.clone();
+            // let out_size = out_size.clone();
             let progress = progress.clone();
-            async move {
+            let cost_ms = cost_ms.clone();
+            let boot_worker = boot_worker.clone();
+            move || {
                 let mut last_query_count = 0;
-                let mut last_in_size = 0;
-                let mut last_out_size = 0;
+                // let mut last_in_size = 0;
+                // let mut last_out_size = 0;
 
                 loop {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    thread::sleep(tokio::time::Duration::from_secs(1));
                     let query_count = query_count.load(Ordering::Relaxed);
-                    let in_size = in_size.load(Ordering::Relaxed);
-                    let out_size = out_size.load(Ordering::Relaxed);
+                    // let in_size = in_size.load(Ordering::Relaxed);
+                    // let out_size = out_size.load(Ordering::Relaxed);
                     let progress = progress.load(Ordering::Relaxed);
                     let current_progress = (progress as f64 / progress_total as f64) * 100.0;
+                    let cost_ms = cost_ms.load(Ordering::Relaxed);
+                    let boot_worker = boot_worker.load(Ordering::Relaxed);
+                    if boot_worker < thread_count as usize {
+                        println!(
+                            "OPStress [{}] wait for boot {}/{}.",
+                            chrono::Local::now().timestamp(),
+                            boot_worker,
+                            thread_count
+                        );
+                        continue;
+                    }
                     // println!(
                     //     "OPStress [{}] query_count: {} in_size: {} out_size: {}",
                     //     chrono::Local::now().timestamp(),
@@ -282,32 +298,43 @@ impl Mongobar {
                     //     in_size,
                     //     out_size
                     // );
+                    // println!(
+                    //     "OPStress [{}] count: {}/s io: ({:.2},{:.2})MB/s cost: {:.2}/ms progress: {:.2}%",
+                    //     chrono::Local::now().timestamp(),
+                    //     query_count - last_query_count,
+                    //     bytes_to_mb(in_size - last_in_size),
+                    //     bytes_to_mb(out_size - last_out_size),
+                    //     (cost_ms as f64 / query_count as f64),
+                    //     current_progress
+                    // );
                     println!(
-                        "OPStress [{}] count: {}/s io: ({:.2},{:.2})MB/s progress: {:.2}%",
+                        "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}%",
                         chrono::Local::now().timestamp(),
                         query_count - last_query_count,
-                        bytes_to_mb(in_size - last_in_size),
-                        bytes_to_mb(out_size - last_out_size),
+                        (cost_ms as f64 / query_count as f64),
                         current_progress
                     );
                     last_query_count = query_count;
-                    last_in_size = in_size;
-                    last_out_size = out_size;
+                    // last_in_size = in_size;
+                    // last_out_size = out_size;
                 }
             }
         });
 
-        for i in 0..thread_count {
+        for _ in 0..thread_count {
             let gate = gate.clone();
             let op_rows = self.op_rows.clone();
 
-            let out_size = out_size.clone();
-            let in_size = in_size.clone();
+            // let out_size = out_size.clone();
+            // let in_size = in_size.clone();
             let query_count = query_count.clone();
             let progress = progress.clone();
+            let cost_ms = cost_ms.clone();
+            let boot_worker = boot_worker.clone();
             let client = Arc::clone(&client);
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
+                boot_worker.fetch_add(1, Ordering::Relaxed);
                 gate.wait().await;
                 // println!(
                 //     "Thread[{}] [{}]\tstart",
@@ -317,7 +344,7 @@ impl Mongobar {
 
                 // let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
-                for c in 0..loop_count {
+                for _c in 0..loop_count {
                     // println!(
                     //     "Thread[{}] [{}]\tloop {}",
                     //     i,
@@ -329,25 +356,27 @@ impl Mongobar {
                         match &row.op {
                             op_row::Op::Query => {
                                 let db = client.database(&row.db);
-                                query_count.fetch_add(1, Ordering::Relaxed);
-                                out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
-
+                                // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
+                                let start = chrono::Local::now().timestamp_millis();
                                 let res = db.run_cursor_command(row.cmd.clone()).await;
-                                if let Err(e) = &res {
-                                    println!(
-                                        "Thread[{}] [{}]\t err {}",
-                                        i,
-                                        chrono::Local::now().timestamp(),
-                                        e
-                                    );
-                                }
-                                if let Ok(mut cursor) = res {
-                                    let mut sum = 0;
-                                    while cursor.advance().await.unwrap() {
-                                        sum += cursor.current().as_bytes().len();
-                                    }
-                                    in_size.fetch_add(sum, Ordering::Relaxed);
-                                }
+                                let end = chrono::Local::now().timestamp_millis();
+                                cost_ms.fetch_add((end - start) as usize, Ordering::Relaxed);
+                                query_count.fetch_add(1, Ordering::Relaxed);
+                                // if let Err(e) = &res {
+                                //     println!(
+                                //         "Thread[{}] [{}]\t err {}",
+                                //         i,
+                                //         chrono::Local::now().timestamp(),
+                                //         e
+                                //     );
+                                // }
+                                // if let Ok(mut cursor) = res {
+                                //     let mut sum = 0;
+                                //     while cursor.advance().await.unwrap() {
+                                //         sum += cursor.current().as_bytes().len();
+                                //     }
+                                //     in_size.fetch_add(sum, Ordering::Relaxed);
+                                // }
                             }
                             _ => {}
                         }
