@@ -185,7 +185,8 @@ fn run_app<B: Backend>(
                             app.tabs_path.push((tab, old));
                             app.active_tab = 1;
                         } else if tab.to_string().contains("Start") {
-                            app.active_tabs = vec!["Stop".red().bold()];
+                            app.active_tabs =
+                                vec!["Stop".red().bold(), "Boost+".yellow(), "Boost-".yellow()];
                             app.active_tab = 0;
                         }
                     }
