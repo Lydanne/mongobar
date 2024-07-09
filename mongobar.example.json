@@ -1,0 +1,6 @@
+{
+  "uri": "mongodb://root:12345678@localhost:27017/?authSource=admin",
+  "db": "qxg",
+  "thread_count": 1000,
+  "loop_count": 100
+}
