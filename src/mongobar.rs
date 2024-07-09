@@ -25,8 +25,9 @@ mod op_state;
 pub(crate) struct Mongobar {
     pub(crate) dir: PathBuf,
     pub(crate) name: String,
-    pub(crate) op_rows: Vec<op_row::OpRow>,
 
+    pub(crate) op_workdir: PathBuf,
+    pub(crate) op_rows: Vec<op_row::OpRow>,
     pub(crate) op_file_padding: PathBuf,
     pub(crate) op_file_done: PathBuf,
 
@@ -41,17 +42,18 @@ impl Mongobar {
     pub fn new(name: &str) -> Self {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
         let dir: PathBuf = cur_cwd.join("runtime");
-        let cwd: PathBuf = dir.join(name);
+        let workdir: PathBuf = dir.join(name);
         Self {
             name: name.to_string(),
+            op_workdir: workdir.clone(),
             op_rows: Vec::new(),
-            op_file_padding: cwd.join(PathBuf::from("padding.oplog.json")),
-            op_file_done: cwd.join(PathBuf::from("done.oplog.json")),
+            op_file_padding: workdir.join(PathBuf::from("padding.oplog.json")),
+            op_file_done: workdir.join(PathBuf::from("done.oplog.json")),
             config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
             config: mongobar_config::MongobarConfig::default(),
             dir,
 
-            op_state_file: cwd.join(PathBuf::from("state.json")),
+            op_state_file: workdir.join(PathBuf::from("state.json")),
             op_state: op_state::OpState::default(),
         }
     }
