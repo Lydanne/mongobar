@@ -223,7 +223,7 @@ impl Mongobar {
     // 5. 【程序】等待所有线程结束
     // 6. 【程序】标记结束时间 毫秒
     // 7. 【程序】计算分析
-    pub async fn op_stress(&mut self) -> Result<(), anyhow::Error> {
+    pub async fn op_stress(&self) -> Result<(), anyhow::Error> {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
         // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
 
@@ -392,16 +392,16 @@ impl Mongobar {
         }
 
         let stress_start_time: i64 = chrono::Local::now().timestamp();
-        self.op_state.stress_start_ts = stress_start_time;
-        self.save_state();
+        // self.op_state.stress_start_ts = stress_start_time;
+        // self.save_state();
 
         for handle in handles {
             handle.await?;
         }
 
         let stress_end_time = chrono::Local::now().timestamp();
-        self.op_state.stress_end_ts = stress_end_time;
-        self.save_state();
+        // self.op_state.stress_end_ts = stress_end_time;
+        // self.save_state();
 
         if let Ok(was) = cur_profile.get_i32("was") {
             if was != 0 {
@@ -421,13 +421,9 @@ impl Mongobar {
     }
 
     pub async fn ui(self) -> Result<(), anyhow::Error> {
-        let mongobar = if self.op_workdir.exists() {
-            self
-        } else {
-            self.init()
-        };
+        let mongobar = self.init();
 
-        ui::main();
+        ui::main(mongobar);
 
         Ok(())
     }

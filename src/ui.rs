@@ -23,6 +23,8 @@ use ratatui::{
     },
 };
 
+use crate::mongobar::Mongobar;
+
 #[derive(Clone)]
 struct SinSignal {
     x: f64,
@@ -64,10 +66,12 @@ struct App {
     active_tabs: Vec<Span<'static>>,
     active_tab: usize,
     tabs_path: Vec<(Span<'static>, Vec<Span<'static>>)>,
+
+    mongobar: Mongobar,
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(mongobar: Mongobar) -> Self {
         let mut signal1 = SinSignal::new(0.2, 3.0, 18.0);
         let mut signal2 = SinSignal::new(0.1, 2.0, 10.0);
         let data1 = signal1.by_ref().take(200).collect::<Vec<(f64, f64)>>();
@@ -84,6 +88,8 @@ impl App {
             active_tabs: vec!["Stress".into(), "Replay".into(), "Quit".red()],
             active_tab: 0,
             tabs_path: vec![],
+
+            mongobar,
         }
     }
 
@@ -107,7 +113,7 @@ impl App {
     }
 }
 
-pub fn main() -> Result<(), Box<dyn Error>> {
+pub fn main(mongobar: Mongobar) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -117,7 +123,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(1000);
-    let app = App::new();
+    let app = App::new(mongobar);
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
@@ -224,22 +230,28 @@ fn render_main_view(frame: &mut Frame, area: Rect, app: &App) {
     let [tab, content] =
         Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
 
+    let op_workdir = app.mongobar.op_workdir.to_str().unwrap();
     render_tabs(frame, tab, app);
-    render_title(frame, content, app, "Welcome to Mongobar");
+    render_title(
+        frame,
+        content,
+        app,
+        &format!(
+            "Welcome to Mongobar\n\nworkdir: {}\nconnect: {}\n\nPress Enter to start...",
+            op_workdir,
+            app.mongobar.config.uri.split('@').last().unwrap()
+        ),
+    );
 }
 
 fn render_title(f: &mut Frame, area: Rect, app: &App, title: &str) {
-    let block = Block::new().borders(Borders::ALL);
+    let block = Block::new()
+        .borders(Borders::ALL)
+        .style(Style::default().fg(Color::LightGreen));
     f.render_widget(block, area);
-    let [_, title_block, _] = Layout::vertical([
-        Constraint::Percentage(50),
-        Constraint::Length(2),
-        Constraint::Percentage(50),
-    ])
-    .areas(area);
-    let title = Paragraph::new(title)
-        .style(Style::default().fg(Color::LightGreen))
-        .alignment(Alignment::Center);
+    let [_, title_block] =
+        Layout::vertical([Constraint::Percentage(30), Constraint::Percentage(70)]).areas(area);
+    let title = Paragraph::new(title).alignment(Alignment::Center);
 
     f.render_widget(title, title_block);
 }
