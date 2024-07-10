@@ -313,6 +313,12 @@ fn run_app<B: Backend>(
                                         .push("Done".to_string());
                                 });
                             }
+                        } else if tab.to_string().starts_with("Boost+")
+                            && app.get_tabs_path().starts_with("Stress > Start")
+                        {
+                            let signal = app.signal.clone();
+
+                            signal.set(1);
                         }
                     }
                 }
@@ -459,9 +465,12 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let logs = app.indicator.take("logs").unwrap();
     let cost_ms = app.indicator.take("cost_ms").unwrap().get();
     let query_count = app.indicator.take("query_count").unwrap().get();
+    let thread_count = app.indicator.take("thread_count").unwrap().get();
+    let boot_worker = app.indicator.take("boot_worker").unwrap().get();
 
     let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
+        Line::from(format!("> Thread: {}/{}", boot_worker, thread_count)),
         Line::from(format!(
             "> Query : {:.2}",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64
