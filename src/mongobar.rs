@@ -280,7 +280,7 @@ impl Mongobar {
         // let out_size = Arc::new(AtomicUsize::new(0));
         let cost_ms = self.indicator.take("cost_ms").unwrap();
         let progress = self.indicator.take("progress").unwrap();
-        let query_error = self.indicator.take("query_error").unwrap();
+        let logs = self.indicator.take("logs").unwrap();
         let signal = Arc::clone(&self.signal);
 
         self.indicator
@@ -303,7 +303,7 @@ impl Mongobar {
             let progress = progress.clone();
             let cost_ms = cost_ms.clone();
             let boot_worker = boot_worker.clone();
-            let query_error = query_error.clone();
+            let logs = logs.clone();
             let client = Arc::clone(&client);
             let signal = Arc::clone(&signal);
             handles.push(tokio::spawn(async move {
@@ -319,12 +319,12 @@ impl Mongobar {
                 // let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
                 for _c in 0..loop_count {
-                    println!(
-                        "Thread[{}] [{}]\tloop {}",
-                        i,
-                        chrono::Local::now().timestamp(),
-                        _c,
-                    );
+                    // println!(
+                    //     "Thread[{}] [{}]\tloop {}",
+                    //     i,
+                    //     chrono::Local::now().timestamp(),
+                    //     _c,
+                    // );
                     for row in &op_rows {
                         if signal.get() != 0 {
                             return;
@@ -340,7 +340,7 @@ impl Mongobar {
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
                                 if let Err(e) = &res {
-                                    query_error.push(format!(
+                                    logs.push(format!(
                                         "OPStress [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
                                         i,

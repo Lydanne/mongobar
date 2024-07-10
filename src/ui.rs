@@ -1,7 +1,8 @@
 use std::{
+    borrow::BorrowMut,
     error::Error,
     io,
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
@@ -26,7 +27,10 @@ use ratatui::{
 };
 use tokio::runtime::Builder;
 
-use crate::{indicator, mongobar::Mongobar};
+use crate::{
+    indicator::{self, Metric},
+    mongobar::Mongobar,
+};
 
 #[derive(Clone)]
 struct SinSignal {
@@ -73,6 +77,10 @@ struct App {
     target: String,
     indicator: indicator::Indicator,
     signal: Arc<crate::signal::Signal>, // 0 初始状态，1 是停止，2 是停止成功
+
+    boot_at: i64,
+    current_at: Metric,
+    stress_start_at: Metric,
 }
 
 impl App {
@@ -86,7 +94,7 @@ impl App {
             "query_count".to_string(),
             "cost_ms".to_string(),
             "progress".to_string(),
-            "query_error".to_string(),
+            "logs".to_string(),
             "progress_total".to_string(),
             "thread_count".to_string(),
         ]);
@@ -107,7 +115,23 @@ impl App {
 
             indicator: indic,
             signal: Arc::new(crate::signal::Signal::new()),
+
+            boot_at: chrono::Local::now().timestamp(),
+            current_at: Metric::new(),
+            stress_start_at: Metric::new(),
         }
+    }
+
+    fn update_current_at(&self) {
+        if self.signal.get() == 0 {
+            self.current_at
+                .set(chrono::Local::now().timestamp() as usize);
+        }
+    }
+
+    fn update_stress_start_at(&self) {
+        self.stress_start_at
+            .set(chrono::Local::now().timestamp() as usize);
     }
 
     fn on_tick(&mut self) {
@@ -221,9 +245,11 @@ fn run_app<B: Backend>(
                         if app.get_tabs_path().starts_with("Stress > Start") {
                             let target = app.target.clone();
                             let indicator = app.indicator.clone();
+                            let inner_indicator = app.indicator.clone();
                             let signal = app.signal.clone();
                             signal.set(0);
-
+                            inner_indicator.reset();
+                            app.update_stress_start_at();
                             thread::spawn(move || {
                                 let runtime =
                                     Builder::new_multi_thread().enable_all().build().unwrap();
@@ -240,6 +266,10 @@ fn run_app<B: Backend>(
                                     }
                                 });
                                 inner_signal.set(2);
+                                inner_indicator
+                                    .take("logs")
+                                    .unwrap()
+                                    .push("Done".to_string());
                             });
                         }
                     }
@@ -257,6 +287,7 @@ fn ui(frame: &mut Frame, app: &App) {
     let area = frame.size();
 
     if app.get_tabs_path().starts_with("Stress > Start") {
+        app.update_current_at();
         render_stress_view(frame, area, app);
     } else if app.get_tabs_path().starts_with("Stress") {
         render_stress_start_view(frame, area, app);
@@ -383,12 +414,25 @@ fn render_tabs(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_log(f: &mut Frame, area: Rect, app: &App) {
+    let logs = app.indicator.take("logs").unwrap();
     let cost_ms = app.indicator.take("cost_ms").unwrap().get();
-    let text = vec![
+    let query_count = app.indicator.take("query_count").unwrap().get();
+
+    let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
-        Line::from(format!("> {}", cost_ms)),
+        Line::from(format!(
+            "> Query : {:.2}",
+            (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64
+        )),
+        Line::from(format!(
+            "> Cost  : {:.2}ms",
+            (cost_ms as f64) / query_count as f64
+        )),
     ];
-    let block = Block::new().borders(Borders::ALL).title(format!("Logs"));
+    logs.logs().iter().for_each(|v| {
+        text.push(Line::from(format!("> {}", v.as_str())));
+    });
+    let block = Block::new().borders(Borders::ALL).title(format!("Console"));
     let paragraph = Paragraph::new(text.clone())
         .style(Style::default().fg(Color::Gray))
         .block(block)

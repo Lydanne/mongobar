@@ -11,6 +11,13 @@ pub struct Metric {
 }
 
 impl Metric {
+    pub fn new() -> Self {
+        Self {
+            number: AtomicUsize::new(0),
+            logs: Mutex::new(Vec::new()),
+        }
+    }
+
     pub fn increment(&self) {
         self.number
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -78,6 +85,13 @@ impl Indicator {
     pub fn take(&self, name: &str) -> Option<Arc<Metric>> {
         self.metric.get(name).map(|m| Arc::clone(m))
     }
+
+    pub fn reset(&self) {
+        for (_, v) in self.metric.iter() {
+            v.set(0);
+            v.consumers();
+        }
+    }
 }
 
 pub fn print_indicator(indicator: &Indicator) {
@@ -87,7 +101,7 @@ pub fn print_indicator(indicator: &Indicator) {
     // let out_size = Arc::new(AtomicUsize::new(0));
     let cost_ms = indicator.take("cost_ms").unwrap();
     let progress = indicator.take("progress").unwrap();
-    let query_error = indicator.take("query_error").unwrap();
+    let logs = indicator.take("logs").unwrap();
     let progress_total = indicator.take("progress_total").unwrap();
     let thread_count = indicator.take("thread_count").unwrap();
 
@@ -98,7 +112,7 @@ pub fn print_indicator(indicator: &Indicator) {
         let progress = progress.clone();
         let cost_ms = cost_ms.clone();
         let boot_worker = boot_worker.clone();
-        let query_error = query_error.clone();
+        let logs = logs.clone();
         let progress_total = progress_total.clone();
         let thread_count = thread_count.clone();
         move || {
@@ -126,7 +140,7 @@ pub fn print_indicator(indicator: &Indicator) {
                     );
                     continue;
                 }
-                query_error.consumers().iter().for_each(|v| {
+                logs.consumers().iter().for_each(|v| {
                     println!("{}", v);
                 });
 

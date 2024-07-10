@@ -47,7 +47,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 "query_count".to_string(),
                 "cost_ms".to_string(),
                 "progress".to_string(),
-                "query_error".to_string(),
+                "logs".to_string(),
                 "progress_total".to_string(),
                 "thread_count".to_string(),
             ]);
