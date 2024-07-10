@@ -107,6 +107,16 @@ impl App {
             .set(chrono::Local::now().timestamp() as usize);
     }
 
+    fn reset(&mut self) {
+        self.query_chart_data.clear();
+        self.query_count_max = f64::MIN;
+        self.query_count_min = f64::MAX;
+
+        self.cost_chart_data.clear();
+        self.cost_max = f64::MIN;
+        self.cost_min = f64::MAX;
+    }
+
     fn on_tick(&mut self) {
         // self.window[0] += 1.0;
         // self.window[1] += 1.0;
@@ -117,11 +127,14 @@ impl App {
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
             let v = query_count / dur;
-            if v > self.query_count_max {
-                self.query_count_max = v;
-            }
-            if v < self.query_count_min {
-                self.query_count_min = v;
+
+            if !(v.is_infinite() || v.is_nan()) {
+                if v > self.query_count_max {
+                    self.query_count_max = v;
+                }
+                if v < self.query_count_min {
+                    self.query_count_min = v;
+                }
             }
 
             let v = normalize_to_100(v, self.query_count_min, self.query_count_max);
@@ -142,11 +155,13 @@ impl App {
         {
             let cost = self.indicator.take("cost_ms").unwrap().get() as f64;
             let v = cost / dur;
-            if v > self.cost_max {
-                self.cost_max = v;
-            }
-            if v < self.cost_min {
-                self.cost_min = v;
+            if !(v.is_infinite() || v.is_nan()) {
+                if v > self.cost_max {
+                    self.cost_max = v;
+                }
+                if v < self.cost_min {
+                    self.cost_min = v;
+                }
             }
             let v = normalize_to_100(v, self.cost_min, self.cost_max);
 
@@ -253,51 +268,51 @@ fn run_app<B: Backend>(
                             app.signal.set(1);
                         }
                     } else {
-                        let old = app.active_tabs.clone();
+                        let prev = app.active_tabs.clone();
                         if tab.to_string().contains("Stress") {
                             app.active_tabs = vec!["..".gray(), "Start".light_green()];
-                            app.tabs_path.push((tab, old));
+                            app.tabs_path.push((tab, prev));
                             app.active_tab = 1;
                         } else if tab.to_string().contains("Replay") {
                             app.active_tabs = vec!["..".gray(), "Start".light_green()];
-                            app.tabs_path.push((tab, old));
+                            app.tabs_path.push((tab, prev));
                             app.active_tab = 1;
                         } else if tab.to_string().contains("Start") {
                             app.active_tabs =
                                 vec!["Stop".red().bold(), "Boost+".yellow(), "Boost-".yellow()];
-                            app.tabs_path.push((tab, old));
+                            app.tabs_path.push((tab, prev));
                             app.active_tab = 0;
-                        }
-
-                        if app.get_tabs_path().starts_with("Stress > Start") {
-                            let target = app.target.clone();
-                            let indicator = app.indicator.clone();
-                            let inner_indicator = app.indicator.clone();
-                            let signal = app.signal.clone();
-                            signal.set(0);
-                            inner_indicator.reset();
-                            app.update_stress_start_at();
-                            thread::spawn(move || {
-                                let runtime =
-                                    Builder::new_multi_thread().enable_all().build().unwrap();
-                                let inner_signal = signal.clone();
-                                runtime.block_on(async {
-                                    let r = Mongobar::new(&target)
-                                        .set_signal(signal)
-                                        .set_indicator(indicator)
-                                        .init()
-                                        .op_stress()
-                                        .await;
-                                    if let Err(err) = r {
-                                        eprintln!("Error: {}", err);
-                                    }
+                            if app.get_tabs_path().starts_with("Stress > Start") {
+                                let target = app.target.clone();
+                                let indicator = app.indicator.clone();
+                                let inner_indicator = app.indicator.clone();
+                                let signal = app.signal.clone();
+                                signal.set(0);
+                                inner_indicator.reset();
+                                app.reset();
+                                app.update_stress_start_at();
+                                thread::spawn(move || {
+                                    let runtime =
+                                        Builder::new_multi_thread().enable_all().build().unwrap();
+                                    let inner_signal = signal.clone();
+                                    runtime.block_on(async {
+                                        let r = Mongobar::new(&target)
+                                            .set_signal(signal)
+                                            .set_indicator(indicator)
+                                            .init()
+                                            .op_stress()
+                                            .await;
+                                        if let Err(err) = r {
+                                            eprintln!("Error: {}", err);
+                                        }
+                                    });
+                                    inner_signal.set(2);
+                                    inner_indicator
+                                        .take("logs")
+                                        .unwrap()
+                                        .push("Done".to_string());
                                 });
-                                inner_signal.set(2);
-                                inner_indicator
-                                    .take("logs")
-                                    .unwrap()
-                                    .push("Done".to_string());
-                            });
+                            }
                         }
                     }
                 }
