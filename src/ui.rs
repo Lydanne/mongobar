@@ -68,6 +68,8 @@ impl App {
             "logs".to_string(),
             "progress_total".to_string(),
             "thread_count".to_string(),
+            "done_worker".to_string(),
+            "dyn_threads".to_string(),
         ]);
         Self {
             log_scroll: 0,
@@ -278,8 +280,11 @@ fn run_app<B: Backend>(
                             app.tabs_path.push((tab, prev));
                             app.active_tab = 1;
                         } else if tab.to_string().contains("Start") {
-                            app.active_tabs =
-                                vec!["Stop".red().bold(), "Boost+".yellow(), "Boost-".yellow()];
+                            app.active_tabs = vec![
+                                "Stop".red().bold(),
+                                "Boost+100".yellow(),
+                                "Boost+1000".yellow(),
+                            ];
                             app.tabs_path.push((tab, prev));
                             app.active_tab = 0;
                             if app.get_tabs_path().starts_with("Stress > Start") {
@@ -313,12 +318,18 @@ fn run_app<B: Backend>(
                                         .push("Done".to_string());
                                 });
                             }
-                        } else if tab.to_string().starts_with("Boost+")
+                        } else if tab.to_string().starts_with("Boost+1000")
                             && app.get_tabs_path().starts_with("Stress > Start")
                         {
-                            let signal = app.signal.clone();
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
 
-                            signal.set(1);
+                            dyn_threads.set(dyn_threads.get() + 1000);
+                        } else if tab.to_string().starts_with("Boost+100")
+                            && app.get_tabs_path().starts_with("Stress > Start")
+                        {
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+
+                            dyn_threads.set(dyn_threads.get() + 100);
                         }
                     }
                 }
@@ -467,10 +478,14 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let query_count = app.indicator.take("query_count").unwrap().get();
     let thread_count = app.indicator.take("thread_count").unwrap().get();
     let boot_worker = app.indicator.take("boot_worker").unwrap().get();
+    let dyn_threads = app.indicator.take("dyn_threads").unwrap().get();
 
     let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
-        Line::from(format!("> Thread: {}/{}", boot_worker, thread_count)),
+        Line::from(format!(
+            "> Thread: {}/{}+{}",
+            boot_worker, thread_count, dyn_threads
+        )),
         Line::from(format!(
             "> Query : {:.2}",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64

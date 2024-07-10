@@ -251,7 +251,7 @@ impl Mongobar {
         let mongo_uri = self.config.uri.clone();
 
         let mut options = ClientOptions::parse(&mongo_uri).await.unwrap();
-        options.max_pool_size = Some(thread_count);
+        options.max_pool_size = Some(thread_count * 1000);
         options.min_pool_size = Some(thread_count);
         let client = Arc::new(Client::with_options(options).unwrap());
         let db = client.database(&self.config.db);
@@ -275,6 +275,8 @@ impl Mongobar {
         let mut handles = vec![];
 
         let boot_worker = self.indicator.take("boot_worker").unwrap();
+        let done_worker = self.indicator.take("done_worker").unwrap();
+        let dyn_threads = self.indicator.take("dyn_threads").unwrap();
         let query_count = self.indicator.take("query_count").unwrap();
         // let in_size = Arc::new(AtomicUsize::new(0));
         // let out_size = Arc::new(AtomicUsize::new(0));
@@ -284,16 +286,27 @@ impl Mongobar {
         let signal = Arc::clone(&self.signal);
 
         self.indicator
-            .take("progress_total")
-            .unwrap()
-            .set((self.op_rows.len() * loop_count as usize * thread_count as usize) as usize);
-
-        self.indicator
             .take("thread_count")
             .unwrap()
             .set(thread_count as usize);
 
-        for i in 0..thread_count {
+        let mut created_thread_count = 0;
+        loop {
+            let dyn_threads_num = dyn_threads.get();
+            let thread_count_total = thread_count as i32 + dyn_threads_num as i32;
+            let done_worker_num = done_worker.get();
+            if done_worker_num >= thread_count_total as usize {
+                break;
+            }
+            if signal.get() != 0 {
+                break;
+            }
+            if created_thread_count >= thread_count_total {
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                continue;
+            }
+            // -------------------------------------
+            let i = created_thread_count;
             let gate = gate.clone();
             let op_rows = self.op_rows.clone();
 
@@ -306,10 +319,14 @@ impl Mongobar {
             let logs = logs.clone();
             let client = Arc::clone(&client);
             let signal = Arc::clone(&signal);
+            let done_worker = done_worker.clone();
+            let thread_count_num = thread_count;
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
-                gate.wait().await;
+                if i < thread_count_num as i32 {
+                    gate.wait().await;
+                }
                 // println!(
                 //     "Thread[{}] [{}]\tstart",
                 //     i,
@@ -325,9 +342,12 @@ impl Mongobar {
                     //     chrono::Local::now().timestamp(),
                     //     _c,
                     // );
+                    if signal.get() != 0 {
+                        break;
+                    }
                     for row in &op_rows {
                         if signal.get() != 0 {
-                            return;
+                            break;
                         }
                         progress.increment();
                         match &row.op {
@@ -361,7 +381,15 @@ impl Mongobar {
                 }
 
                 // println!("Thread[{}] [{}]\tend", i, chrono::Local::now().timestamp());
+
+                done_worker.increment();
             }));
+            created_thread_count += 1;
+            self.indicator.take("progress_total").unwrap().set(
+                self.op_rows.len()
+                    * loop_count as usize
+                    * (thread_count as usize + dyn_threads_num),
+            );
         }
 
         // let stress_start_time: i64 = chrono::Local::now().timestamp();

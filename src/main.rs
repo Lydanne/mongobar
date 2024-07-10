@@ -50,6 +50,8 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 "logs".to_string(),
                 "progress_total".to_string(),
                 "thread_count".to_string(),
+                "done_worker".to_string(),
+                "dyn_threads".to_string(),
             ]);
             print_indicator(&indic);
             mongobar::Mongobar::new(&op_stress.target)

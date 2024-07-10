@@ -160,7 +160,6 @@ pub fn print_indicator(indicator: &Indicator) {
                 //     (cost_ms as f64 / query_count as f64),
                 //     current_progress
                 // );
-                println!("({:?})", (progress as f64, progress_total as f64));
                 println!(
                     "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}%",
                     chrono::Local::now().timestamp(),
