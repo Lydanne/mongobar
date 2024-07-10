@@ -68,14 +68,14 @@ struct App {
     active_tab: usize,
     tabs_path: Vec<(Span<'static>, Vec<Span<'static>>)>,
 
-    mongobar: Mongobar,
+    target: String,
 }
 
 impl App {
-    fn new(mongobar: Mongobar) -> Self {
+    fn new() -> Self {
         let mut signal1 = SinSignal::new(0.2, 3.0, 18.0);
         let mut signal2 = SinSignal::new(0.1, 2.0, 10.0);
-        let data1 = signal1.by_ref().take(200).collect::<Vec<(f64, f64)>>();
+        let data1: Vec<(f64, f64)> = signal1.by_ref().take(200).collect::<Vec<(f64, f64)>>();
         let data2 = signal2.by_ref().take(200).collect::<Vec<(f64, f64)>>();
         Self {
             signal1,
@@ -90,7 +90,7 @@ impl App {
             active_tab: 0,
             tabs_path: vec![],
 
-            mongobar,
+            target: "".to_string(),
         }
     }
 
@@ -105,7 +105,7 @@ impl App {
         self.window[1] += 1.0;
     }
 
-    pub fn get_tabs_path_string(&self) -> String {
+    pub fn get_tabs_path(&self) -> String {
         self.tabs_path
             .iter()
             .map(|(tab, _)| tab.clone().to_string())
@@ -114,7 +114,7 @@ impl App {
     }
 }
 
-pub fn main(mongobar: Mongobar) -> Result<(), Box<dyn Error>> {
+pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -124,7 +124,8 @@ pub fn main(mongobar: Mongobar) -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(1000);
-    let app = App::new(mongobar);
+    let mut app = App::new();
+    app.target = target.to_string();
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
@@ -198,8 +199,8 @@ fn run_app<B: Backend>(
                             app.active_tab = 0;
                         }
 
-                        if app.get_tabs_path_string().starts_with("Stress > Start") {
-                            let target = app.mongobar.name.clone();
+                        if app.get_tabs_path().starts_with("Stress > Start") {
+                            let target = app.target.clone();
 
                             thread::spawn(move || {
                                 let runtime =
@@ -227,9 +228,11 @@ fn run_app<B: Backend>(
 fn ui(frame: &mut Frame, app: &App) {
     let area = frame.size();
 
-    if app.get_tabs_path_string().contains("Stress") {
+    if app.get_tabs_path().starts_with("Stress > Start") {
         render_stress_view(frame, area, app);
-    } else if app.get_tabs_path_string().contains("Replay") {
+    } else if app.get_tabs_path().starts_with("Stress") {
+        render_stress_start_view(frame, area, app);
+    } else if app.get_tabs_path().starts_with("Replay") {
         render_replay_view(frame, area, app);
     } else {
         render_main_view(frame, area, app);
@@ -244,20 +247,31 @@ fn render_replay_view(frame: &mut Frame, area: Rect, app: &App) {
     render_title(frame, content, app, "will realize soon...");
 }
 
+fn render_stress_start_view(frame: &mut Frame, area: Rect, app: &App) {
+    let [tab, content] =
+        Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
+
+    render_tabs(frame, tab, app);
+    render_title(
+        frame,
+        content,
+        app,
+        &format!("Stress\n\nPress Enter to start..."),
+    );
+}
+
 fn render_main_view(frame: &mut Frame, area: Rect, app: &App) {
     let [tab, content] =
         Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
 
-    let op_workdir = app.mongobar.op_workdir.to_str().unwrap();
     render_tabs(frame, tab, app);
     render_title(
         frame,
         content,
         app,
         &format!(
-            "Welcome to Mongobar\n\nworkdir: {}\nconnect: {}\n\nPress Enter to start...",
-            op_workdir,
-            app.mongobar.config.uri.split('@').last().unwrap()
+            "Welcome to Mongobar\n\nCurrent: {}\n\nPress Enter to start...",
+            &app.target,
         ),
     );
 }
@@ -374,7 +388,7 @@ fn render_chart(f: &mut Frame, area: Rect, app: &App) {
     ];
 
     let chart = Chart::new(datasets)
-        .block(Block::bordered().title(app.get_tabs_path_string()))
+        .block(Block::bordered().title(app.get_tabs_path()))
         .x_axis(
             Axis::default()
                 // .title("Progress")

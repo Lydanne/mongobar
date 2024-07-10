@@ -46,7 +46,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
         Commands::UI(ui) => {
-            mongobar::Mongobar::new(&ui.target).ui().await?;
+            ui::boot(&ui.target);
         }
     }
 

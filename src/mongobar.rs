@@ -419,14 +419,6 @@ impl Mongobar {
     pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
         Ok(())
     }
-
-    pub async fn ui(self) -> Result<(), anyhow::Error> {
-        let mongobar = self.init();
-
-        ui::main(mongobar);
-
-        Ok(())
-    }
 }
 
 fn bytes_to_mb(bytes: usize) -> f64 {
