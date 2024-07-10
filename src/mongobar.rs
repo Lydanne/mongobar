@@ -12,7 +12,7 @@ use std::{
 
 use bson::{doc, DateTime};
 
-use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
+use mongodb::{action::Single, bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
@@ -42,6 +42,7 @@ pub(crate) struct Mongobar {
     pub(crate) config: mongobar_config::MongobarConfig,
 
     pub(crate) indicator: Indicator,
+    pub(crate) signal: Arc<crate::signal::Signal>,
 }
 
 impl Mongobar {
@@ -62,6 +63,8 @@ impl Mongobar {
             op_state_file: workdir.join(PathBuf::from("state.json")),
             op_state: op_state::OpState::default(),
             indicator: Indicator::new(),
+
+            signal: Arc::new(crate::signal::Signal::new()),
         }
     }
 
@@ -87,6 +90,11 @@ impl Mongobar {
 
     pub fn set_indicator(mut self, indicator: Indicator) -> Self {
         self.indicator = indicator;
+        self
+    }
+
+    pub fn set_signal(mut self, signal: Arc<crate::signal::Signal>) -> Self {
+        self.signal = signal;
         self
     }
 
@@ -273,6 +281,7 @@ impl Mongobar {
         let cost_ms = self.indicator.take("cost_ms").unwrap();
         let progress = self.indicator.take("progress").unwrap();
         let query_error = self.indicator.take("query_error").unwrap();
+        let signal = Arc::clone(&self.signal);
 
         self.indicator
             .take("progress_total")
@@ -296,6 +305,7 @@ impl Mongobar {
             let boot_worker = boot_worker.clone();
             let query_error = query_error.clone();
             let client = Arc::clone(&client);
+            let signal = Arc::clone(&signal);
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
@@ -309,13 +319,16 @@ impl Mongobar {
                 // let client = Client::with_uri_str(mongo_uri).await.unwrap();
 
                 for _c in 0..loop_count {
-                    // println!(
-                    //     "Thread[{}] [{}]\tloop {}",
-                    //     i,
-                    //     chrono::Local::now().timestamp(),
-                    //     c,
-                    // );
+                    println!(
+                        "Thread[{}] [{}]\tloop {}",
+                        i,
+                        chrono::Local::now().timestamp(),
+                        _c,
+                    );
                     for row in &op_rows {
+                        if signal.get() != 0 {
+                            return;
+                        }
                         progress.increment();
                         match &row.op {
                             op_row::Op::Query => {
@@ -363,11 +376,12 @@ impl Mongobar {
         // self.op_state.stress_end_ts = stress_end_time;
         // self.save_state();
 
-        if let Ok(was) = cur_profile.get_i32("was") {
-            if was != 0 {
-                db.run_command(doc! { "profile": was }).await?;
-            }
-        }
+        // if let Ok(was) = cur_profile.get_i32("was") {
+        //     if was != 0 {
+        //         db.run_command(doc! { "profile": was }).await?;
+        //     }
+        // }
+        Arc::try_unwrap(client).unwrap().shutdown().await;
 
         Ok(())
     }
@@ -376,11 +390,11 @@ impl Mongobar {
     // 1. 【程序】读取上面标记的时间
     // 2. 【程序】通过时间拉取所有的 oplog.rs
     // 3. 【程序】反向执行所有的操作
-    pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
-        Ok(())
-    }
+    // pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
+    //     Ok(())
+    // }
 }
 
-fn bytes_to_mb(bytes: usize) -> f64 {
-    bytes as f64 / 1024.0 / 1024.0
-}
+// fn bytes_to_mb(bytes: usize) -> f64 {
+//     bytes as f64 / 1024.0 / 1024.0
+// }

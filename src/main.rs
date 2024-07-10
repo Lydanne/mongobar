@@ -9,6 +9,7 @@ use tokio::runtime::Builder;
 mod commands;
 mod indicator;
 mod mongobar;
+mod signal;
 mod ui;
 
 async fn boot() -> Result<(), Box<dyn std::error::Error>> {

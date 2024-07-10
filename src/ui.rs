@@ -1,6 +1,8 @@
 use std::{
     error::Error,
-    io, thread,
+    io,
+    sync::Arc,
+    thread,
     time::{Duration, Instant},
 };
 
@@ -70,6 +72,7 @@ struct App {
 
     target: String,
     indicator: indicator::Indicator,
+    signal: Arc<crate::signal::Signal>, // 0 初始状态，1 是停止，2 是停止成功
 }
 
 impl App {
@@ -103,6 +106,7 @@ impl App {
             target: "".to_string(),
 
             indicator: indic,
+            signal: Arc::new(crate::signal::Signal::new()),
         }
     }
 
@@ -190,9 +194,12 @@ fn run_app<B: Backend>(
                         return Ok(());
                     } else if tab.to_string().contains("..") || tab.to_string().contains("Stop") {
                         let back = app.tabs_path.pop();
-                        if let Some((tab, tabs)) = back {
+                        if let Some((_, tabs)) = back {
                             app.active_tabs = tabs;
                             app.active_tab = 0;
+                        }
+                        if tab.to_string().contains("Stop") {
+                            app.signal.set(1);
                         }
                     } else {
                         let old = app.active_tabs.clone();
@@ -214,13 +221,16 @@ fn run_app<B: Backend>(
                         if app.get_tabs_path().starts_with("Stress > Start") {
                             let target = app.target.clone();
                             let indicator = app.indicator.clone();
+                            let signal = app.signal.clone();
+                            signal.set(0);
 
                             thread::spawn(move || {
                                 let runtime =
                                     Builder::new_multi_thread().enable_all().build().unwrap();
-
+                                let inner_signal = signal.clone();
                                 runtime.block_on(async {
                                     let r = Mongobar::new(&target)
+                                        .set_signal(signal)
                                         .set_indicator(indicator)
                                         .init()
                                         .op_stress()
@@ -229,6 +239,7 @@ fn run_app<B: Backend>(
                                         eprintln!("Error: {}", err);
                                     }
                                 });
+                                inner_signal.set(2);
                             });
                         }
                     }
@@ -273,7 +284,15 @@ fn render_stress_start_view(frame: &mut Frame, area: Rect, app: &App) {
         frame,
         content,
         app,
-        &format!("Stress\n\nPress Enter to start..."),
+        &format!(
+            "Stress\n\nStatus:[{}]\n\nPress Enter to start...",
+            match app.signal.get() {
+                0 => "Init",
+                1 => "Stop",
+                2 => "Stopped",
+                _ => "Unknown",
+            }
+        ),
     );
 }
 
@@ -364,23 +383,10 @@ fn render_tabs(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_log(f: &mut Frame, area: Rect, app: &App) {
+    let cost_ms = app.indicator.take("cost_ms").unwrap().get();
     let text = vec![
-        Line::from("$ OPStress Bootstrapping"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
-        Line::from("$ OPStress [1720515320] count: 403/s cost: 600.69ms progress: 0.08%"),
+        Line::from("> OPStress Bootstrapping"),
+        Line::from(format!("> {}", cost_ms)),
     ];
     let block = Block::new().borders(Borders::ALL).title(format!("Logs"));
     let paragraph = Paragraph::new(text.clone())
