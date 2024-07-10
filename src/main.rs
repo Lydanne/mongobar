@@ -3,9 +3,11 @@ use std::env;
 use bson::DateTime;
 use clap::Parser;
 use commands::{Cli, Commands};
+use indicator::print_indicator;
 use tokio::runtime::Builder;
 
 mod commands;
+mod indicator;
 mod mongobar;
 mod ui;
 
@@ -39,14 +41,25 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
         Commands::OPStress(op_stress) => {
+            let indic = indicator::Indicator::new().init(vec![
+                "boot_worker".to_string(),
+                "query_count".to_string(),
+                "cost_ms".to_string(),
+                "progress".to_string(),
+                "query_error".to_string(),
+                "progress_total".to_string(),
+                "thread_count".to_string(),
+            ]);
+            print_indicator(&indic);
             mongobar::Mongobar::new(&op_stress.target)
+                .set_indicator(indic)
                 .init()
                 .op_stress()
                 .await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
         Commands::UI(ui) => {
-            ui::boot(&ui.target);
+            let _ = ui::boot(&ui.target);
         }
     }
 

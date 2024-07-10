@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
@@ -14,8 +15,9 @@ use bson::{doc, DateTime};
 use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
 use serde::{Deserialize, Serialize};
+use tokio::time::Instant;
 
-use crate::ui;
+use crate::{indicator::Indicator, ui};
 
 mod op_row;
 
@@ -23,7 +25,7 @@ mod mongobar_config;
 
 mod op_state;
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Mongobar {
     pub(crate) dir: PathBuf,
     pub(crate) name: String,
@@ -38,6 +40,8 @@ pub(crate) struct Mongobar {
 
     pub(crate) config_file: PathBuf,
     pub(crate) config: mongobar_config::MongobarConfig,
+
+    pub(crate) indicator: Indicator,
 }
 
 impl Mongobar {
@@ -57,6 +61,7 @@ impl Mongobar {
 
             op_state_file: workdir.join(PathBuf::from("state.json")),
             op_state: op_state::OpState::default(),
+            indicator: Indicator::new(),
         }
     }
 
@@ -78,6 +83,11 @@ impl Mongobar {
         self.load_op_rows();
 
         return self;
+    }
+
+    pub fn set_indicator(mut self, indicator: Indicator) -> Self {
+        self.indicator = indicator;
+        self
     }
 
     pub fn clean(self) -> Self {
@@ -256,74 +266,23 @@ impl Mongobar {
         let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];
 
-        let boot_worker = Arc::new(AtomicUsize::new(0));
-        let query_count = Arc::new(AtomicUsize::new(0));
+        let boot_worker = self.indicator.take("boot_worker").unwrap();
+        let query_count = self.indicator.take("query_count").unwrap();
         // let in_size = Arc::new(AtomicUsize::new(0));
         // let out_size = Arc::new(AtomicUsize::new(0));
-        let cost_ms = Arc::new(AtomicUsize::new(0));
-        let progress = Arc::new(AtomicUsize::new(0));
-        let progress_total =
-            (self.op_rows.len() * loop_count as usize * thread_count as usize) as usize;
+        let cost_ms = self.indicator.take("cost_ms").unwrap();
+        let progress = self.indicator.take("progress").unwrap();
+        let query_error = self.indicator.take("query_error").unwrap();
 
-        thread::spawn({
-            let query_count = query_count.clone();
-            // let in_size = in_size.clone();
-            // let out_size = out_size.clone();
-            let progress = progress.clone();
-            let cost_ms = cost_ms.clone();
-            let boot_worker = boot_worker.clone();
-            move || {
-                let mut last_query_count = 0;
-                // let mut last_in_size = 0;
-                // let mut last_out_size = 0;
+        self.indicator
+            .take("progress_total")
+            .unwrap()
+            .set((self.op_rows.len() * loop_count as usize * thread_count as usize) as usize);
 
-                loop {
-                    thread::sleep(tokio::time::Duration::from_secs(1));
-                    let query_count = query_count.load(Ordering::Relaxed);
-                    // let in_size = in_size.load(Ordering::Relaxed);
-                    // let out_size = out_size.load(Ordering::Relaxed);
-                    let progress = progress.load(Ordering::Relaxed);
-                    let current_progress = (progress as f64 / progress_total as f64) * 100.0;
-                    let cost_ms = cost_ms.load(Ordering::Relaxed);
-                    let boot_worker = boot_worker.load(Ordering::Relaxed);
-                    if boot_worker < thread_count as usize {
-                        println!(
-                            "OPStress [{}] wait for boot {}/{}.",
-                            chrono::Local::now().timestamp(),
-                            boot_worker,
-                            thread_count
-                        );
-                        continue;
-                    }
-                    // println!(
-                    //     "OPStress [{}] query_count: {} in_size: {} out_size: {}",
-                    //     chrono::Local::now().timestamp(),
-                    //     query_count,
-                    //     in_size,
-                    //     out_size
-                    // );
-                    // println!(
-                    //     "OPStress [{}] count: {}/s io: ({:.2},{:.2})MB/s cost: {:.2}/ms progress: {:.2}%",
-                    //     chrono::Local::now().timestamp(),
-                    //     query_count - last_query_count,
-                    //     bytes_to_mb(in_size - last_in_size),
-                    //     bytes_to_mb(out_size - last_out_size),
-                    //     (cost_ms as f64 / query_count as f64),
-                    //     current_progress
-                    // );
-                    println!(
-                        "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}%",
-                        chrono::Local::now().timestamp(),
-                        query_count - last_query_count,
-                        (cost_ms as f64 / query_count as f64),
-                        current_progress
-                    );
-                    last_query_count = query_count;
-                    // last_in_size = in_size;
-                    // last_out_size = out_size;
-                }
-            }
-        });
+        self.indicator
+            .take("thread_count")
+            .unwrap()
+            .set(thread_count as usize);
 
         for i in 0..thread_count {
             let gate = gate.clone();
@@ -335,10 +294,11 @@ impl Mongobar {
             let progress = progress.clone();
             let cost_ms = cost_ms.clone();
             let boot_worker = boot_worker.clone();
+            let query_error = query_error.clone();
             let client = Arc::clone(&client);
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
-                boot_worker.fetch_add(1, Ordering::Relaxed);
+                boot_worker.increment();
                 gate.wait().await;
                 // println!(
                 //     "Thread[{}] [{}]\tstart",
@@ -356,23 +316,23 @@ impl Mongobar {
                     //     c,
                     // );
                     for row in &op_rows {
-                        progress.fetch_add(1, Ordering::Relaxed);
+                        progress.increment();
                         match &row.op {
                             op_row::Op::Query => {
                                 let db = client.database(&row.db);
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
-                                let start = chrono::Local::now().timestamp_millis();
+                                let start = Instant::now();
                                 let res = db.run_cursor_command(row.cmd.clone()).await;
-                                let end = chrono::Local::now().timestamp_millis();
-                                cost_ms.fetch_add((end - start) as usize, Ordering::Relaxed);
-                                query_count.fetch_add(1, Ordering::Relaxed);
+                                let end = start.elapsed();
+                                cost_ms.add(end.as_millis() as usize);
+                                query_count.increment();
                                 if let Err(e) = &res {
-                                    println!(
+                                    query_error.push(format!(
                                         "OPStress [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
                                         i,
                                         e
-                                    );
+                                    ));
                                 }
                                 // if let Ok(mut cursor) = res {
                                 //     let mut sum = 0;
@@ -391,7 +351,7 @@ impl Mongobar {
             }));
         }
 
-        let stress_start_time: i64 = chrono::Local::now().timestamp();
+        // let stress_start_time: i64 = chrono::Local::now().timestamp();
         // self.op_state.stress_start_ts = stress_start_time;
         // self.save_state();
 
@@ -399,7 +359,7 @@ impl Mongobar {
             handle.await?;
         }
 
-        let stress_end_time = chrono::Local::now().timestamp();
+        // let stress_end_time = chrono::Local::now().timestamp();
         // self.op_state.stress_end_ts = stress_end_time;
         // self.save_state();
 
