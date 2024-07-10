@@ -256,12 +256,12 @@ impl Mongobar {
             }
         }
 
-        println!(
-            "OPStress [{}] loop_count: {} thread_count: {}",
-            chrono::Local::now().timestamp(),
-            loop_count,
-            thread_count
-        );
+        // println!(
+        //     "OPStress [{}] loop_count: {} thread_count: {}",
+        //     chrono::Local::now().timestamp(),
+        //     loop_count,
+        //     thread_count
+        // );
 
         let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];

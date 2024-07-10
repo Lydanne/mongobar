@@ -102,13 +102,13 @@ pub fn print_indicator(indicator: &Indicator) {
         let progress_total = progress_total.clone();
         let thread_count = thread_count.clone();
         move || {
-            let progress_total = progress_total.get();
-            let thread_count = thread_count.get();
             let mut last_query_count = 0;
             // let mut last_in_size = 0;
             // let mut last_out_size = 0;
 
             loop {
+                let progress_total = progress_total.get();
+                let thread_count = thread_count.get();
                 thread::sleep(tokio::time::Duration::from_secs(1));
                 let query_count = query_count.get();
                 // let in_size = in_size.load(Ordering::Relaxed);
@@ -146,6 +146,7 @@ pub fn print_indicator(indicator: &Indicator) {
                 //     (cost_ms as f64 / query_count as f64),
                 //     current_progress
                 // );
+                println!("({:?})", (progress as f64, progress_total as f64));
                 println!(
                     "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}%",
                     chrono::Local::now().timestamp(),

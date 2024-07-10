@@ -24,7 +24,7 @@ use ratatui::{
 };
 use tokio::runtime::Builder;
 
-use crate::mongobar::Mongobar;
+use crate::{indicator, mongobar::Mongobar};
 
 #[derive(Clone)]
 struct SinSignal {
@@ -69,6 +69,7 @@ struct App {
     tabs_path: Vec<(Span<'static>, Vec<Span<'static>>)>,
 
     target: String,
+    indicator: indicator::Indicator,
 }
 
 impl App {
@@ -77,6 +78,15 @@ impl App {
         let mut signal2 = SinSignal::new(0.1, 2.0, 10.0);
         let data1: Vec<(f64, f64)> = signal1.by_ref().take(200).collect::<Vec<(f64, f64)>>();
         let data2 = signal2.by_ref().take(200).collect::<Vec<(f64, f64)>>();
+        let indic = indicator::Indicator::new().init(vec![
+            "boot_worker".to_string(),
+            "query_count".to_string(),
+            "cost_ms".to_string(),
+            "progress".to_string(),
+            "query_error".to_string(),
+            "progress_total".to_string(),
+            "thread_count".to_string(),
+        ]);
         Self {
             signal1,
             data1,
@@ -91,6 +101,8 @@ impl App {
             tabs_path: vec![],
 
             target: "".to_string(),
+
+            indicator: indic,
         }
     }
 
@@ -201,13 +213,18 @@ fn run_app<B: Backend>(
 
                         if app.get_tabs_path().starts_with("Stress > Start") {
                             let target = app.target.clone();
+                            let indicator = app.indicator.clone();
 
                             thread::spawn(move || {
                                 let runtime =
                                     Builder::new_multi_thread().enable_all().build().unwrap();
 
                                 runtime.block_on(async {
-                                    let r = Mongobar::new(&target).init().op_stress().await;
+                                    let r = Mongobar::new(&target)
+                                        .set_indicator(indicator)
+                                        .init()
+                                        .op_stress()
+                                        .await;
                                     if let Err(err) = r {
                                         eprintln!("Error: {}", err);
                                     }
@@ -305,12 +322,23 @@ fn render_stress_view(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_progress(f: &mut Frame, area: Rect, app: &App) {
+    let progress = app.indicator.take("progress").unwrap().get();
+    let progress_total = app.indicator.take("progress_total").unwrap().get();
+    let mut current_progress = progress as f64 / progress_total as f64;
+    if current_progress.is_nan() {
+        current_progress = 0.0;
+    }
+
+    if current_progress > 0.999 {
+        current_progress = 1.0
+    }
+
     let block = Block::new().borders(Borders::ALL);
     let gauge = Gauge::default()
         .block(block)
         .gauge_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green))
-        .label(format!("{:.0}%", app.progress * 100.0))
-        .ratio(app.progress);
+        .label(format!("{:.2}%", current_progress * 100.0))
+        .ratio(current_progress);
     f.render_widget(gauge, area);
 }
 
