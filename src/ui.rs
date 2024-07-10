@@ -32,42 +32,7 @@ use crate::{
     mongobar::Mongobar,
 };
 
-#[derive(Clone)]
-struct SinSignal {
-    x: f64,
-    interval: f64,
-    period: f64,
-    scale: f64,
-}
-
-impl SinSignal {
-    const fn new(interval: f64, period: f64, scale: f64) -> Self {
-        Self {
-            x: 0.0,
-            interval,
-            period,
-            scale,
-        }
-    }
-}
-
-impl Iterator for SinSignal {
-    type Item = (f64, f64);
-    fn next(&mut self) -> Option<Self::Item> {
-        let point = (self.x, (self.x * 1.0 / self.period).sin() * self.scale);
-        self.x += self.interval;
-        Some(point)
-    }
-}
-
 struct App {
-    signal1: SinSignal,
-    data1: Vec<(f64, f64)>,
-    signal2: SinSignal,
-    data2: Vec<(f64, f64)>,
-    window: [f64; 2],
-
-    progress: f64,
     log_scroll: u16,
 
     active_tabs: Vec<Span<'static>>,
@@ -81,14 +46,20 @@ struct App {
     boot_at: i64,
     current_at: Metric,
     stress_start_at: Metric,
+
+    query_chart_data: Vec<(f64, f64)>,
+    query_count_max: f64,
+    query_count_min: f64,
+
+    cost_chart_data: Vec<(f64, f64)>,
+    cost_max: f64,
+    cost_min: f64,
+
+    v: f64,
 }
 
 impl App {
     fn new() -> Self {
-        let mut signal1 = SinSignal::new(0.2, 3.0, 18.0);
-        let mut signal2 = SinSignal::new(0.1, 2.0, 10.0);
-        let data1: Vec<(f64, f64)> = signal1.by_ref().take(200).collect::<Vec<(f64, f64)>>();
-        let data2 = signal2.by_ref().take(200).collect::<Vec<(f64, f64)>>();
         let indic = indicator::Indicator::new().init(vec![
             "boot_worker".to_string(),
             "query_count".to_string(),
@@ -99,13 +70,6 @@ impl App {
             "thread_count".to_string(),
         ]);
         Self {
-            signal1,
-            data1,
-            signal2,
-            data2,
-            window: [0.0, 20.0],
-
-            progress: 0.5,
             log_scroll: 0,
             active_tabs: vec!["Stress".into(), "Replay".into(), "Quit".red()],
             active_tab: 0,
@@ -119,6 +83,15 @@ impl App {
             boot_at: chrono::Local::now().timestamp(),
             current_at: Metric::new(),
             stress_start_at: Metric::new(),
+
+            query_count_max: f64::MIN,
+            query_count_min: f64::MAX,
+            query_chart_data: vec![],
+
+            cost_max: f64::MIN,
+            cost_min: f64::MAX,
+            cost_chart_data: vec![],
+            v: 0.0,
         }
     }
 
@@ -135,14 +108,77 @@ impl App {
     }
 
     fn on_tick(&mut self) {
-        self.data1.drain(0..5);
-        self.data1.extend(self.signal1.by_ref().take(5));
+        // self.window[0] += 1.0;
+        // self.window[1] += 1.0;
 
-        self.data2.drain(0..10);
-        self.data2.extend(self.signal2.by_ref().take(10));
+        let current_at = chrono::Local::now().timestamp() as f64;
+        let stress_start_at = self.stress_start_at.get() as f64;
+        {
+            let query_count = self.indicator.take("query_count").unwrap().get() as f64;
+            let v = query_count / (current_at - stress_start_at);
+            if v > self.query_count_max {
+                self.query_count_max = v;
+            }
+            self.query_count_min =
+                self.query_chart_data.iter().fold(
+                    f64::MAX,
+                    |min, (_, v)| {
+                        if *v < min {
+                            *v
+                        } else {
+                            min
+                        }
+                    },
+                );
 
-        self.window[0] += 1.0;
-        self.window[1] += 1.0;
+            let v = normalize_to_100(v, self.query_count_min, self.query_count_max);
+
+            self.query_chart_data
+                .push((self.query_chart_data.len() as f64, v));
+
+            if self.query_chart_data.len() > 200 {
+                self.query_chart_data.remove(0);
+                self.query_chart_data
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, (x, _))| {
+                        *x = i as f64;
+                    });
+            }
+        }
+        {
+            let cost = self.indicator.take("cost_ms").unwrap().get() as f64;
+            let v = cost / (current_at - stress_start_at);
+            if v > self.cost_max {
+                self.cost_max = v;
+            }
+            self.cost_min =
+                self.cost_chart_data.iter().fold(
+                    f64::MAX,
+                    |min, (_, v)| {
+                        if *v < min {
+                            *v
+                        } else {
+                            min
+                        }
+                    },
+                );
+
+            let v = normalize_to_100(v, self.cost_min, self.cost_max);
+
+            self.cost_chart_data
+                .push((self.cost_chart_data.len() as f64, v));
+
+            if self.cost_chart_data.len() > 200 {
+                self.cost_chart_data.remove(0);
+                self.cost_chart_data
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, (x, _))| {
+                        *x = i as f64;
+                    });
+            }
+        }
     }
 
     pub fn get_tabs_path(&self) -> String {
@@ -163,7 +199,7 @@ pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     // create app and run it
-    let tick_rate = Duration::from_millis(1000);
+    let tick_rate = Duration::from_millis(100);
     let mut app = App::new();
     app.target = target.to_string();
     let res = run_app(&mut terminal, app, tick_rate);
@@ -428,6 +464,24 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             "> Cost  : {:.2}ms",
             (cost_ms as f64) / query_count as f64
         )),
+        Line::from(format!(
+            "> Query Chart: {} {} {}",
+            app.query_count_min,
+            app.query_count_max,
+            app.query_chart_data
+                .last()
+                .map(|(x, y)| format!("({},{})", x, y))
+                .unwrap_or_default(),
+        )),
+        Line::from(format!(
+            "> Cost Chart: {} {} {}",
+            app.cost_min,
+            app.cost_max,
+            app.cost_chart_data
+                .last()
+                .map(|(x, y)| format!("({},{})", x, y))
+                .unwrap_or_default(),
+        )),
     ];
     logs.logs().iter().for_each(|v| {
         text.push(Line::from(format!("> {}", v.as_str())));
@@ -441,46 +495,50 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_chart(f: &mut Frame, area: Rect, app: &App) {
-    let x_labels = vec![
-        Span::styled(
-            format!("{}", app.window[0]),
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(format!("{}", (app.window[0] + app.window[1]) / 2.0)),
-        Span::styled(
-            format!("{}", app.window[1]),
-            Style::default().add_modifier(Modifier::BOLD),
-        ),
-    ];
+    // let x_labels = vec![
+    //     Span::styled(
+    //         format!("{}", app.window[0]),
+    //         Style::default().add_modifier(Modifier::BOLD),
+    //     ),
+    //     Span::raw(format!("{}", (app.window[0] + app.window[1]) / 2.0)),
+    //     Span::styled(
+    //         format!("{}", app.window[1]),
+    //         Style::default().add_modifier(Modifier::BOLD),
+    //     ),
+    // ];
     let datasets = vec![
         Dataset::default()
-            .name("data2")
+            .name("Query")
             .marker(symbols::Marker::Dot)
             .style(Style::default().fg(Color::Cyan))
-            .data(&app.data1),
+            .data(&app.query_chart_data),
         Dataset::default()
-            .name("data3")
+            .name("Cost")
             .marker(symbols::Marker::Braille)
             .style(Style::default().fg(Color::Yellow))
-            .data(&app.data2),
+            .data(&app.cost_chart_data),
     ];
 
-    let chart = Chart::new(datasets)
+    let chart: Chart = Chart::new(datasets)
         .block(Block::bordered().title(app.get_tabs_path()))
         .x_axis(
             Axis::default()
                 // .title("Progress")
                 .style(Style::default().fg(Color::Gray))
                 // .labels(x_labels)
-                .bounds(app.window),
+                .bounds([0., 200.]),
         )
         .y_axis(
             Axis::default()
                 // .title("Query")
                 .style(Style::default().fg(Color::Gray))
                 // .labels(vec!["-20".bold(), "0".into(), "20".bold()])
-                .bounds([-20.0, 20.0]),
+                .bounds([0., 100.]),
         );
 
     f.render_widget(chart, area);
+}
+
+fn normalize_to_100(x: f64, min: f64, max: f64) -> f64 {
+    ((x - min) / (max - min)) * 100.0
 }
