@@ -80,9 +80,9 @@ impl App {
             indicator: indic,
             signal: Arc::new(crate::signal::Signal::new()),
 
-            boot_at: chrono::Local::now().timestamp(),
-            current_at: Metric::new(),
-            stress_start_at: Metric::new(),
+            boot_at: chrono::Local::now().timestamp(), // s
+            current_at: Metric::new(),                 // s
+            stress_start_at: Metric::new(),            // s
 
             query_count_max: f64::MIN,
             query_count_min: f64::MAX,
@@ -113,23 +113,16 @@ impl App {
 
         let current_at = chrono::Local::now().timestamp() as f64;
         let stress_start_at = self.stress_start_at.get() as f64;
+        let dur = current_at - stress_start_at;
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
-            let v = query_count / (current_at - stress_start_at);
+            let v = query_count / dur;
             if v > self.query_count_max {
                 self.query_count_max = v;
             }
-            self.query_count_min =
-                self.query_chart_data.iter().fold(
-                    f64::MAX,
-                    |min, (_, v)| {
-                        if *v < min {
-                            *v
-                        } else {
-                            min
-                        }
-                    },
-                );
+            if v < self.query_count_min {
+                self.query_count_min = v;
+            }
 
             let v = normalize_to_100(v, self.query_count_min, self.query_count_max);
 
@@ -148,22 +141,13 @@ impl App {
         }
         {
             let cost = self.indicator.take("cost_ms").unwrap().get() as f64;
-            let v = cost / (current_at - stress_start_at);
+            let v = cost / dur;
             if v > self.cost_max {
                 self.cost_max = v;
             }
-            self.cost_min =
-                self.cost_chart_data.iter().fold(
-                    f64::MAX,
-                    |min, (_, v)| {
-                        if *v < min {
-                            *v
-                        } else {
-                            min
-                        }
-                    },
-                );
-
+            if v < self.cost_min {
+                self.cost_min = v;
+            }
             let v = normalize_to_100(v, self.cost_min, self.cost_max);
 
             self.cost_chart_data
@@ -179,6 +163,13 @@ impl App {
                     });
             }
         }
+
+        // if (dur as u32) % 5 == 0 {
+        //     // self.cost_max = f64::MIN;
+        //     self.cost_min = f64::MAX;
+        //     // self.query_count_max = f64::MIN;
+        //     self.query_count_min = f64::MAX;
+        // }
     }
 
     pub fn get_tabs_path(&self) -> String {
