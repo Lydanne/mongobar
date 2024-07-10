@@ -471,12 +471,12 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             (cost_ms as f64) / query_count as f64
         )),
         Line::from(format!(
-            "> Query Chart: {} {} {}",
+            "> Query Chart: {:.2} {:.2} {}",
             app.query_count_min,
             app.query_count_max,
             app.query_chart_data
                 .last()
-                .map(|(x, y)| format!("({},{})", x, y))
+                .map(|(x, y)| format!("({:.2},{:.2})", x, y))
                 .unwrap_or_default(),
         )),
         Line::from(format!(
