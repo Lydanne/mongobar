@@ -118,9 +118,9 @@ impl App {
     }
 
     fn on_tick(&mut self) {
-        // self.window[0] += 1.0;
-        // self.window[1] += 1.0;
-
+        if self.signal.get() != 0 {
+            return;
+        }
         let current_at = chrono::Local::now().timestamp() as f64;
         let stress_start_at = self.stress_start_at.get() as f64;
         let dur = current_at - stress_start_at;
@@ -480,12 +480,12 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
                 .unwrap_or_default(),
         )),
         Line::from(format!(
-            "> Cost Chart: {} {} {}",
+            "> Cost Chart: {:.2} {:.2} {}",
             app.cost_min,
             app.cost_max,
             app.cost_chart_data
                 .last()
-                .map(|(x, y)| format!("({},{})", x, y))
+                .map(|(x, y)| format!("({:.2},{:.2})", x, y))
                 .unwrap_or_default(),
         )),
     ];
