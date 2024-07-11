@@ -249,19 +249,19 @@ impl Mongobar {
         let thread_count = self.config.thread_count;
 
         let mongo_uri = self.config.uri.clone();
+        {
+            let options = ClientOptions::parse(&mongo_uri).await.unwrap();
+            let client = Client::with_options(options).unwrap();
+            let db = client.database(&self.config.db);
 
-        let mut options = ClientOptions::parse(&mongo_uri).await.unwrap();
-        options.max_pool_size = Some(thread_count * 1000);
-        options.min_pool_size = Some(thread_count);
-        let client = Arc::new(Client::with_options(options).unwrap());
-        let db = client.database(&self.config.db);
+            let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
 
-        let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
-
-        if let Ok(was) = cur_profile.get_i32("was") {
-            if was != 0 {
-                db.run_command(doc! { "profile": 0 }).await?;
+            if let Ok(was) = cur_profile.get_i32("was") {
+                if was != 0 {
+                    db.run_command(doc! { "profile": 0 }).await?;
+                }
             }
+            client.shutdown().await;
         }
 
         // println!(
@@ -290,6 +290,8 @@ impl Mongobar {
             .unwrap()
             .set(thread_count as usize);
 
+        let mut client_pool = ClientPool::new(&self.config.uri, 10000);
+
         let mut created_thread_count = 0;
         loop {
             let dyn_threads_num = dyn_threads.get();
@@ -317,7 +319,7 @@ impl Mongobar {
             let cost_ms = cost_ms.clone();
             let boot_worker = boot_worker.clone();
             let logs = logs.clone();
-            let client = Arc::clone(&client);
+            let client = client_pool.get().await?;
             let signal = Arc::clone(&signal);
             let done_worker = done_worker.clone();
             let thread_count_num = thread_count;
@@ -409,7 +411,8 @@ impl Mongobar {
         //         db.run_command(doc! { "profile": was }).await?;
         //     }
         // }
-        Arc::try_unwrap(client).unwrap().shutdown().await;
+
+        client_pool.shutdown().await;
 
         Ok(())
     }
@@ -426,3 +429,48 @@ impl Mongobar {
 // fn bytes_to_mb(bytes: usize) -> f64 {
 //     bytes as f64 / 1024.0 / 1024.0
 // }
+
+struct ClientPool {
+    uri: String,
+    clients: Vec<Arc<Client>>,
+    every_size: u32,
+    get_index: usize,
+}
+
+impl ClientPool {
+    fn new(uri: &str, every_size: u32) -> Self {
+        let clients = vec![];
+
+        Self {
+            clients,
+            every_size,
+            uri: uri.to_string(),
+            get_index: 0,
+        }
+    }
+
+    async fn get(&mut self) -> Result<Arc<Client>, anyhow::Error> {
+        let len = self.clients.len();
+        let total = len * self.every_size as usize;
+        if total <= self.get_index {
+            let mut options = ClientOptions::parse(&self.uri).await?;
+            options.max_pool_size = Some(self.every_size + 1);
+            options.min_pool_size = Some(self.every_size);
+            let client = Arc::new(Client::with_options(options).unwrap());
+            self.clients.push(client);
+        }
+
+        let block_index = self.get_index / self.every_size as usize;
+        let client = Arc::clone(&self.clients[block_index]);
+
+        self.get_index = self.get_index + 1;
+
+        Ok(client)
+    }
+
+    async fn shutdown(self) {
+        for client in self.clients {
+            Arc::try_unwrap(client).unwrap().shutdown().await;
+        }
+    }
+}
