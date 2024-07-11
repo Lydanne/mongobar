@@ -302,6 +302,7 @@ fn run_app<B: Backend>(
                         } else if tab.to_string().contains("Start") {
                             app.active_tabs = vec![
                                 "Stop".red().bold(),
+                                "Boost+1".yellow(),
                                 "Boost+10".yellow(),
                                 "Boost+100".yellow(),
                                 "Boost+1000".yellow(),
@@ -357,6 +358,12 @@ fn run_app<B: Backend>(
                             let dyn_threads = app.indicator.take("dyn_threads").unwrap();
 
                             dyn_threads.set(dyn_threads.get() + 10);
+                        } else if tab.to_string().starts_with("Boost+1")
+                            && app.get_tabs_path().starts_with("Stress > Start")
+                        {
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+
+                            dyn_threads.set(dyn_threads.get() + 1);
                         }
                     }
                 }
