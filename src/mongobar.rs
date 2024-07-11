@@ -290,7 +290,7 @@ impl Mongobar {
             .unwrap()
             .set(thread_count as usize);
 
-        let mut client_pool = ClientPool::new(&self.config.uri, 10000);
+        let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
 
         let mut created_thread_count = 0;
         loop {
@@ -460,7 +460,7 @@ impl ClientPool {
         if total <= self.get_index {
             let mut options = ClientOptions::parse(&self.uri).await?;
             options.max_pool_size = Some(self.every_size + 1);
-            options.min_pool_size = Some(self.every_size);
+            options.min_pool_size = Some(self.every_size / 100 + 1);
             let client = Arc::new(Client::with_options(options).unwrap());
             self.clients.push(client);
         }
