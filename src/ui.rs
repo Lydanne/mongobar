@@ -575,7 +575,7 @@ fn render_chart(f: &mut Frame, area: Rect, app: &App) {
             .data(&app.query_chart_data),
         Dataset::default()
             .name("Cost")
-            .marker(symbols::Marker::Braille)
+            .marker(symbols::Marker::Dot)
             .style(Style::default().fg(Color::Yellow))
             .data(&app.cost_chart_data),
     ];
