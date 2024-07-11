@@ -336,14 +336,15 @@ impl Mongobar {
                 // );
 
                 // let client = Client::with_uri_str(mongo_uri).await.unwrap();
+                let mut index = 0 as usize;
 
-                for _c in 0..loop_count {
-                    // println!(
-                    //     "Thread[{}] [{}]\tloop {}",
-                    //     i,
-                    //     chrono::Local::now().timestamp(),
-                    //     _c,
-                    // );
+                loop {
+                    if loop_count != -1 {
+                        index += 1;
+                        if index > loop_count as usize {
+                            break;
+                        }
+                    }
                     if signal.get() != 0 {
                         break;
                     }
