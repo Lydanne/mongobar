@@ -50,10 +50,14 @@ struct App {
     query_chart_data: Vec<(f64, f64)>,
     query_count_max: f64,
     query_count_min: f64,
+    last_query_count: usize,
+    diff_query_count: usize,
 
     cost_chart_data: Vec<(f64, f64)>,
     cost_max: f64,
     cost_min: f64,
+    last_cost: f64,
+    diff_cost: f64,
 
     v: f64,
 }
@@ -89,10 +93,15 @@ impl App {
             query_count_max: f64::MIN,
             query_count_min: f64::MAX,
             query_chart_data: vec![],
+            last_query_count: 0,
+            diff_query_count: 0,
 
             cost_max: f64::MIN,
             cost_min: f64::MAX,
             cost_chart_data: vec![],
+            last_cost: 0.,
+            diff_cost: 0.,
+
             v: 0.0,
         }
     }
@@ -119,7 +128,7 @@ impl App {
         self.cost_min = f64::MAX;
     }
 
-    fn on_tick(&mut self) {
+    fn on_tick(&mut self, tick_index: usize) {
         if self.signal.get() != 0 {
             return;
         }
@@ -128,7 +137,12 @@ impl App {
         let dur = current_at - stress_start_at;
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
-            let v = query_count / dur;
+            if tick_index == 0 {
+                let diff_query_count = query_count - self.last_query_count as f64;
+                self.last_query_count = query_count as usize;
+                self.diff_query_count = diff_query_count as usize;
+            }
+            let v = self.diff_query_count as f64;
 
             if !(v.is_infinite() || v.is_nan()) {
                 if v > self.query_count_max {
@@ -156,7 +170,12 @@ impl App {
         }
         {
             let cost = self.indicator.take("cost_ms").unwrap().get() as f64;
-            let v = cost / dur;
+            if tick_index == 0 {
+                let diff_cost = cost - self.last_cost;
+                self.last_cost = cost;
+                self.diff_cost = (diff_cost / self.diff_query_count as f64);
+            }
+            let v = self.diff_cost as f64;
             if !(v.is_infinite() || v.is_nan()) {
                 if v > self.cost_max {
                     self.cost_max = v;
@@ -234,6 +253,7 @@ fn run_app<B: Backend>(
     tick_rate: Duration,
 ) -> io::Result<()> {
     let mut last_tick = Instant::now();
+    let mut tick_index = 0;
     loop {
         terminal.draw(|f| ui(f, &app))?;
 
@@ -343,8 +363,10 @@ fn run_app<B: Backend>(
             }
         }
         if last_tick.elapsed() >= tick_rate {
-            app.on_tick();
+            app.on_tick(tick_index);
             last_tick = Instant::now();
+            tick_index = tick_index + 1;
+            tick_index = tick_index % 10;
         }
     }
 }
@@ -504,12 +526,14 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             boot_worker, thread_count, dyn_threads
         )),
         Line::from(format!(
-            "> Query : {:.2}/s",
-            (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64
+            "> Query : {:.2}/s {}/s",
+            (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64,
+            app.diff_query_count
         )),
         Line::from(format!(
-            "> Cost  : {:.2}ms",
-            (cost_ms as f64) / query_count as f64
+            "> Cost  : {:.2}ms {:.2}/ms",
+            (cost_ms as f64) / query_count as f64,
+            app.diff_cost
         )),
         Line::from(format!(
             "> Query Stats: min({:.2}) max({:.2})",
