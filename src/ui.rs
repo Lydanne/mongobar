@@ -282,6 +282,7 @@ fn run_app<B: Backend>(
                         } else if tab.to_string().contains("Start") {
                             app.active_tabs = vec![
                                 "Stop".red().bold(),
+                                "Boost+10".yellow(),
                                 "Boost+100".yellow(),
                                 "Boost+1000".yellow(),
                             ];
@@ -330,6 +331,12 @@ fn run_app<B: Backend>(
                             let dyn_threads = app.indicator.take("dyn_threads").unwrap();
 
                             dyn_threads.set(dyn_threads.get() + 100);
+                        } else if tab.to_string().starts_with("Boost+10")
+                            && app.get_tabs_path().starts_with("Stress > Start")
+                        {
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+
+                            dyn_threads.set(dyn_threads.get() + 10);
                         }
                     }
                 }
@@ -495,22 +502,12 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             (cost_ms as f64) / query_count as f64
         )),
         Line::from(format!(
-            "> Query Chart: {:.2} {:.2} {}",
-            app.query_count_min,
-            app.query_count_max,
-            app.query_chart_data
-                .last()
-                .map(|(x, y)| format!("({:.2},{:.2})", x, y))
-                .unwrap_or_default(),
+            "> Query Stats: min({:.2}) max({:.2})",
+            app.query_count_min, app.query_count_max,
         )),
         Line::from(format!(
-            "> Cost Chart: {:.2} {:.2} {}",
-            app.cost_min,
-            app.cost_max,
-            app.cost_chart_data
-                .last()
-                .map(|(x, y)| format!("({:.2},{:.2})", x, y))
-                .unwrap_or_default(),
+            "> Cost Stats: min({:.2}) max({:.2})",
+            app.cost_min, app.cost_max,
         )),
     ];
     logs.logs().iter().for_each(|v| {
