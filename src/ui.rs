@@ -440,22 +440,32 @@ fn render_stress_view(frame: &mut Frame, area: Rect, app: &App) {
 fn render_progress(f: &mut Frame, area: Rect, app: &App) {
     let progress = app.indicator.take("progress").unwrap().get();
     let progress_total = app.indicator.take("progress_total").unwrap().get();
-    let mut current_progress = progress as f64 / progress_total as f64;
-    if current_progress.is_nan() {
-        current_progress = 0.0;
-    }
+    if progress_total == 0 {
+        let block = Block::new().borders(Borders::ALL);
+        let gauge = Gauge::default()
+            .block(block)
+            .gauge_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green))
+            .label(format!("count: {}", progress))
+            .ratio(0.);
+        f.render_widget(gauge, area);
+    } else {
+        let mut current_progress = progress as f64 / progress_total as f64;
+        if current_progress.is_nan() {
+            current_progress = 0.0;
+        }
 
-    if current_progress > 0.999 {
-        current_progress = 1.0
-    }
+        if current_progress > 0.999 {
+            current_progress = 1.0
+        }
 
-    let block = Block::new().borders(Borders::ALL);
-    let gauge = Gauge::default()
-        .block(block)
-        .gauge_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green))
-        .label(format!("{:.2}%", current_progress * 100.0))
-        .ratio(current_progress);
-    f.render_widget(gauge, area);
+        let block = Block::new().borders(Borders::ALL);
+        let gauge = Gauge::default()
+            .block(block)
+            .gauge_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green))
+            .label(format!("{:.2}%", current_progress * 100.0))
+            .ratio(current_progress);
+        f.render_widget(gauge, area);
+    }
 }
 
 fn render_tabs(f: &mut Frame, area: Rect, app: &App) {
@@ -494,7 +504,7 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             boot_worker, thread_count, dyn_threads
         )),
         Line::from(format!(
-            "> Query : {:.2}",
+            "> Query : {:.2}/s",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64
         )),
         Line::from(format!(
@@ -536,7 +546,7 @@ fn render_chart(f: &mut Frame, area: Rect, app: &App) {
     let datasets = vec![
         Dataset::default()
             .name("Query")
-            .marker(symbols::Marker::Dot)
+            .marker(symbols::Marker::Braille)
             .style(Style::default().fg(Color::Cyan))
             .data(&app.query_chart_data),
         Dataset::default()

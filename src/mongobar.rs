@@ -388,11 +388,15 @@ impl Mongobar {
                 done_worker.increment();
             }));
             created_thread_count += 1;
-            self.indicator.take("progress_total").unwrap().set(
-                self.op_rows.len()
-                    * loop_count as usize
-                    * (thread_count as usize + dyn_threads_num),
-            );
+            if loop_count == -1 {
+                self.indicator.take("progress_total").unwrap().set(0);
+            } else {
+                self.indicator.take("progress_total").unwrap().set(
+                    self.op_rows.len()
+                        * loop_count as usize
+                        * (thread_count as usize + dyn_threads_num),
+                );
+            }
         }
 
         // let stress_start_time: i64 = chrono::Local::now().timestamp();
