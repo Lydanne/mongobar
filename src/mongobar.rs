@@ -302,7 +302,7 @@ impl Mongobar {
                 break;
             }
             if created_thread_count >= thread_count_total {
-                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 continue;
             }
             // -------------------------------------
