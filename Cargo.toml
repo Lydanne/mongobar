@@ -18,6 +18,7 @@ bson = "2.11.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 clap = { version = "4.5.8", features = ["derive"] }
 ratatui = { version = "0.27.0", features = ["crossterm"] }
+tui-input = "*"
 
 [dependencies.educe]
 version = "*"

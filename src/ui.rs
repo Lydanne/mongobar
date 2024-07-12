@@ -1,7 +1,7 @@
 use std::{
     borrow::BorrowMut,
     error::Error,
-    io,
+    io::{self, stdout, Write},
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -11,6 +11,7 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     crossterm::{
         self,
+        cursor::{Hide, Show},
         event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
         execute,
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -19,13 +20,15 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     symbols::{self, Marker},
     terminal::{Frame, Terminal},
-    text::{Line, Masked, Span},
+    text::{Line, Masked, Span, ToText},
     widgets::{
-        block::Title, Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, LegendPosition, List,
-        ListItem, Paragraph,
+        block::Title, Axis, Block, Borders, Chart, Clear, Dataset, Gauge, GraphType,
+        LegendPosition, List, ListItem, Paragraph, Widget, Wrap,
     },
 };
 use tokio::runtime::Builder;
+use tui_input::backend::crossterm as backend;
+use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
     indicator::{self, Metric},
@@ -58,6 +61,11 @@ struct App {
     cost_min: f64,
     last_cost: f64,
     diff_cost: f64,
+
+    show_popup: bool,
+    popup_input: Input,
+    popup_title: String,
+    popup_tip: String,
 
     v: f64,
 }
@@ -101,6 +109,11 @@ impl App {
             cost_chart_data: vec![],
             last_cost: 0.,
             diff_cost: 0.,
+
+            show_popup: false,
+            popup_input: Input::new("".to_string()),
+            popup_title: "Popup Input".to_string(),
+            popup_tip: "Press Enter to confirm.".to_string(),
 
             v: 0.0,
         }
@@ -173,7 +186,7 @@ impl App {
             if tick_index == 0 {
                 let diff_cost = cost - self.last_cost;
                 self.last_cost = cost;
-                self.diff_cost = (diff_cost / self.diff_query_count as f64);
+                self.diff_cost = diff_cost / self.diff_query_count as f64;
             }
             let v = self.diff_cost as f64;
             if !(v.is_infinite() || v.is_nan()) {
@@ -221,7 +234,7 @@ pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, Hide, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -235,6 +248,7 @@ pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
+        Show,
         LeaveAlternateScreen,
         DisableMouseCapture
     )?;
@@ -259,7 +273,8 @@ fn run_app<B: Backend>(
 
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
+            let event = event::read()?;
+            if let Event::Key(key) = &event {
                 if key.code == KeyCode::Char('q') {
                     return Ok(());
                 }
@@ -300,13 +315,7 @@ fn run_app<B: Backend>(
                             app.tabs_path.push((tab, prev));
                             app.active_tab = 1;
                         } else if tab.to_string().contains("Start") {
-                            app.active_tabs = vec![
-                                "Stop".red().bold(),
-                                "Boost+1".yellow(),
-                                "Boost+10".yellow(),
-                                "Boost+100".yellow(),
-                                "Boost+1000".yellow(),
-                            ];
+                            app.active_tabs = vec!["Stop".red().bold(), "Boost+".yellow()];
                             app.tabs_path.push((tab, prev));
                             app.active_tab = 0;
                             if app.get_tabs_path().starts_with("Stress > Start") {
@@ -340,32 +349,58 @@ fn run_app<B: Backend>(
                                         .push("Done".to_string());
                                 });
                             }
-                        } else if tab.to_string().starts_with("Boost+1000")
+                        } else if tab.to_string().starts_with("Boost+")
                             && app.get_tabs_path().starts_with("Stress > Start")
                         {
-                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            // let dyn_threads = app.indicator.take("dyn_threads").unwrap();
 
-                            dyn_threads.set(dyn_threads.get() + 1000);
-                        } else if tab.to_string().starts_with("Boost+100")
-                            && app.get_tabs_path().starts_with("Stress > Start")
-                        {
-                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            app.show_popup = true;
 
-                            dyn_threads.set(dyn_threads.get() + 100);
-                        } else if tab.to_string().starts_with("Boost+10")
-                            && app.get_tabs_path().starts_with("Stress > Start")
-                        {
-                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            app.popup_input = "10".into();
 
-                            dyn_threads.set(dyn_threads.get() + 10);
-                        } else if tab.to_string().starts_with("Boost+1")
-                            && app.get_tabs_path().starts_with("Stress > Start")
-                        {
-                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            app.active_tabs = vec!["Cancel".light_red(), "Confirm".light_green()];
+                            app.tabs_path.push((tab, prev));
+                            app.active_tab = 1;
+                        } else if app.get_tabs_path().starts_with("Stress > Start > Boost+") {
+                            if tab.to_string().starts_with("Confirm") {
+                                let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                                let res_value = app.popup_input.value().parse::<usize>();
+                                if let Ok(value) = res_value {
+                                    dyn_threads.set(dyn_threads.get() + value);
+                                    app.show_popup = false;
 
-                            dyn_threads.set(dyn_threads.get() + 1);
+                                    let back = app.tabs_path.pop();
+                                    if let Some((_, tabs)) = back {
+                                        app.active_tabs = tabs;
+                                        app.active_tab = 1;
+                                    }
+                                } else {
+                                    app.popup_tip = "Invalid input.".to_string();
+                                }
+                            } else if tab.to_string().starts_with("Cancel") {
+                                app.show_popup = false;
+
+                                let back = app.tabs_path.pop();
+                                if let Some((_, tabs)) = back {
+                                    app.active_tabs = tabs;
+                                    app.active_tab = 1;
+                                }
+                            }
                         }
                     }
+                }
+
+                if app.popup_input.handle_event(&event).is_some() {
+                    // let mut stdout = stdout();
+
+                    // backend::write(
+                    //     &mut stdout,
+                    //     app.popup_input.value(),
+                    //     app.popup_input.cursor(),
+                    //     (0, 0),
+                    //     15,
+                    // )?;
+                    // stdout.flush()?;
                 }
             }
         }
@@ -391,6 +426,37 @@ fn ui(frame: &mut Frame, app: &App) {
     } else {
         render_main_view(frame, area, app);
     }
+
+    if app.show_popup {
+        render_popup(frame, area, app);
+    }
+}
+
+fn render_popup(frame: &mut Frame, area: Rect, app: &App) {
+    // take up a third of the screen vertically and half horizontally
+    let popup_area = Rect {
+        x: area.width / 3,
+        y: area.height / 4,
+        width: area.width / 3,
+        height: 4,
+    };
+    Clear.render(popup_area, frame.buffer_mut());
+
+    let bad_popup = Paragraph::new(vec![
+        Line::from(format!("Input: [{}]", app.popup_input.value())),
+        Line::from(app.popup_tip.as_str()),
+    ])
+    .wrap(Wrap { trim: true })
+    .style(Style::new().yellow().bg(Color::Blue))
+    .block(
+        Block::new()
+            .title(app.popup_title.as_str())
+            .title_style(Style::new().white().bold())
+            .borders(Borders::ALL)
+            .border_style(Style::new().red()),
+    );
+
+    frame.render_widget(bad_popup, popup_area);
 }
 
 fn render_replay_view(frame: &mut Frame, area: Rect, app: &App) {
