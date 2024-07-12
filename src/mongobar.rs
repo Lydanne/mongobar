@@ -275,12 +275,13 @@ impl Mongobar {
         let mut handles = vec![];
 
         let dyn_threads = self.indicator.take("dyn_threads").unwrap();
-        let dyn_qps_limit = self.indicator.take("dyn_qps_limit").unwrap();
+        let dyn_cc_limit = self.indicator.take("dyn_cc_limit").unwrap();
 
         let boot_worker = self.indicator.take("boot_worker").unwrap();
         let done_worker = self.indicator.take("done_worker").unwrap();
         let query_count = self.indicator.take("query_count").unwrap();
         let query_qps = self.indicator.take("query_qps").unwrap();
+        let querying = self.indicator.take("querying").unwrap();
         // let in_size = Arc::new(AtomicUsize::new(0));
         // let out_size = Arc::new(AtomicUsize::new(0));
         let cost_ms = self.indicator.take("cost_ms").unwrap();
@@ -293,24 +294,24 @@ impl Mongobar {
             .unwrap()
             .set(thread_count as usize);
 
-        thread::spawn({
-            let signal = Arc::clone(&signal);
-            let query_count = query_count.clone();
-            let query_qps = query_qps.clone();
-            move || {
-                let mut last_query_count = 0;
-                loop {
-                    std::thread::sleep(std::time::Duration::from_secs(1));
-                    let cur_query_count = query_count.get();
-                    let qps = cur_query_count - last_query_count;
-                    query_qps.set(qps);
-                    last_query_count = query_count.get();
-                    if signal.get() != 0 {
-                        break;
-                    }
-                }
-            }
-        });
+        // thread::spawn({
+        //     let signal = Arc::clone(&signal);
+        //     let query_count = query_count.clone();
+        //     let query_qps = query_qps.clone();
+        //     move || {
+        //         let mut last_query_count = 0;
+        //         loop {
+        //             std::thread::sleep(std::time::Duration::from_secs(1));
+        //             let cur_query_count = query_count.get();
+        //             let qps = cur_query_count - last_query_count;
+        //             query_qps.set(qps);
+        //             last_query_count = query_count.get();
+        //             if signal.get() != 0 {
+        //                 break;
+        //             }
+        //         }
+        //     }
+        // });
 
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
 
@@ -344,8 +345,9 @@ impl Mongobar {
             let client = client_pool.get().await?;
             let signal = Arc::clone(&signal);
             let done_worker = done_worker.clone();
-            let dyn_qps_limit = dyn_qps_limit.clone();
+            let dyn_cc_limit = dyn_cc_limit.clone();
             let query_qps = query_qps.clone();
+            let querying = querying.clone();
             let thread_count_num = thread_count;
 
             handles.push(tokio::spawn(async move {
@@ -373,9 +375,9 @@ impl Mongobar {
                     if signal.get() != 0 {
                         break;
                     }
-                    let dyn_qps_limit_n = dyn_qps_limit.get();
-                    if dyn_qps_limit_n > 0 && query_qps.get() >= dyn_qps_limit_n {
-                        let rand = rand::random::<u64>() % 1000;
+                    let dyn_cc_limit_n = dyn_cc_limit.get();
+                    if dyn_cc_limit_n > 0 && querying.get() >= dyn_cc_limit_n {
+                        let rand = rand::random::<u64>() % 100;
                         tokio::time::sleep(tokio::time::Duration::from_millis(rand)).await;
                         continue;
                     }
@@ -383,6 +385,7 @@ impl Mongobar {
                         if signal.get() != 0 {
                             break;
                         }
+                        querying.increment();
                         progress.increment();
                         match &row.op {
                             op_row::Op::Query => {
@@ -411,6 +414,8 @@ impl Mongobar {
                             }
                             _ => {}
                         }
+
+                        querying.decrement();
                     }
                 }
 
