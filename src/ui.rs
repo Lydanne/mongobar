@@ -1,8 +1,7 @@
 use std::{
-    borrow::BorrowMut,
     error::Error,
-    io::{self, stdout, Write},
-    sync::{Arc, Mutex},
+    io::{self},
+    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -17,17 +16,15 @@ use ratatui::{
         terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     },
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Modifier, Style, Stylize},
-    symbols::{self, Marker},
+    style::{Color, Style, Stylize},
+    symbols::{self},
     terminal::{Frame, Terminal},
-    text::{Line, Masked, Span, ToText},
+    text::{Line, Span},
     widgets::{
-        block::Title, Axis, Block, Borders, Chart, Clear, Dataset, Gauge, GraphType,
-        LegendPosition, List, ListItem, Paragraph, Widget, Wrap,
+        Axis, Block, Borders, Chart, Clear, Dataset, Gauge, List, ListItem, Paragraph, Widget, Wrap,
     },
 };
 use tokio::runtime::Builder;
-use tui_input::backend::crossterm as backend;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
@@ -38,9 +35,7 @@ use crate::{
 struct App {
     log_scroll: u16,
 
-    active_tabs: Vec<Span<'static>>,
-    active_tab: usize,
-    tabs_path: Vec<(Span<'static>, Vec<Span<'static>>)>,
+    router: Router,
 
     target: String,
     indicator: indicator::Indicator,
@@ -85,9 +80,12 @@ impl App {
         ]);
         Self {
             log_scroll: 0,
-            active_tabs: vec!["Stress".into(), "Replay".into(), "Quit".red()],
-            active_tab: 0,
-            tabs_path: vec![],
+
+            router: Router::new(vec![
+                Route::new(RouteType::Push, "Stress", "Stress"),
+                Route::new(RouteType::Push, "Replay", "Replay"),
+                Route::new(RouteType::Quit, "Quit", "Quit"),
+            ]),
 
             target: "".to_string(),
 
@@ -139,6 +137,8 @@ impl App {
         self.cost_chart_data.clear();
         self.cost_max = f64::MIN;
         self.cost_min = f64::MAX;
+
+        self.signal.set(0);
     }
 
     fn on_tick(&mut self, tick_index: usize) {
@@ -220,14 +220,6 @@ impl App {
         //     self.query_count_min = f64::MAX;
         // }
     }
-
-    pub fn get_tabs_path(&self) -> String {
-        self.tabs_path
-            .iter()
-            .map(|(tab, _)| tab.clone().to_string())
-            .collect::<Vec<_>>()
-            .join(" > ")
-    }
 }
 
 pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
@@ -274,135 +266,116 @@ fn run_app<B: Backend>(
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
         if crossterm::event::poll(timeout)? {
             let event = event::read()?;
-            if let Event::Key(key) = &event {
-                if key.code == KeyCode::Char('q') {
+
+            match app.router.event(&event) {
+                EventType::Enter(cptab, rtype) => {
+                    // println!("Enter: {}, {:?}", cptab, rtype);
+                    match cptab.as_str() {
+                        "/Stress" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Start", "Start"),
+                                    Route::new(RouteType::Pop, "Back", "Back"),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Replay" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Pop, "Back", "Back"),
+                                    Route::new(RouteType::Quit, "Quit", "Quit"),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Stress/Start" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Boost+", "Boost+"),
+                                    Route::new(RouteType::Push, "Stop", "Stop")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+
+                            app.update_stress_start_at();
+                            app.reset();
+
+                            let target = app.target.clone();
+                            let indicator = app.indicator.clone();
+                            let inner_indicator = app.indicator.clone();
+                            let signal = app.signal.clone();
+
+                            inner_indicator.reset();
+
+                            thread::spawn(move || {
+                                let runtime =
+                                    Builder::new_multi_thread().enable_all().build().unwrap();
+                                let inner_signal = signal.clone();
+                                runtime.block_on(async {
+                                    let r = Mongobar::new(&target)
+                                        .set_signal(signal)
+                                        .set_indicator(indicator)
+                                        .init()
+                                        .op_stress()
+                                        .await;
+                                    if let Err(err) = r {
+                                        eprintln!("Error: {}", err);
+                                    }
+                                });
+                                inner_signal.set(2);
+                                inner_indicator
+                                    .take("logs")
+                                    .unwrap()
+                                    .push("Done".to_string());
+                            });
+                        }
+                        "/Stress/Start/Stop" => {
+                            app.signal.set(1);
+                            app.router.pop();
+                        }
+                        "/Stress/Start/Boost+" => {
+                            app.show_popup = true;
+                            app.popup_input = Input::new("10".to_string());
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Confirm", "Confirm"),
+                                    Route::new(RouteType::Push, "Cancel", "Cancel")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Stress/Start/Boost+/Confirm" => {
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            let res_value = app.popup_input.value().parse::<usize>();
+                            if let Ok(value) = res_value {
+                                dyn_threads.set(dyn_threads.get() + value);
+                                app.show_popup = false;
+                                app.router.pop();
+                            } else {
+                                app.popup_tip = "Invalid input.".to_string();
+                            }
+                        }
+                        "/Stress/Start/Boost+/Cancel" => {
+                            app.show_popup = false;
+                            app.router.pop();
+                        }
+                        _ => {}
+                    }
+
+                    if let RouteType::Pop = rtype {
+                        app.router.pop();
+                    }
+                }
+                EventType::Quit => {
                     return Ok(());
                 }
-
-                if key.code == KeyCode::Up {
-                    if app.active_tab > 0 {
-                        app.active_tab -= 1;
-                    }
-                }
-
-                if key.code == KeyCode::Down {
-                    if app.active_tab < app.active_tabs.len() - 1 {
-                        app.active_tab += 1;
-                    }
-                }
-
-                if key.code == KeyCode::Enter {
-                    let tab = app.active_tabs[app.active_tab].clone();
-                    if tab.to_string().contains("Quit") {
-                        return Ok(());
-                    } else if tab.to_string().contains("..") || tab.to_string().contains("Stop") {
-                        let back = app.tabs_path.pop();
-                        if let Some((_, tabs)) = back {
-                            app.active_tabs = tabs;
-                            app.active_tab = 0;
-                        }
-                        if tab.to_string().contains("Stop") {
-                            app.signal.set(1);
-                        }
-                    } else {
-                        let prev = app.active_tabs.clone();
-                        if tab.to_string().contains("Stress") {
-                            app.active_tabs = vec!["..".gray(), "Start".light_green()];
-                            app.tabs_path.push((tab, prev));
-                            app.active_tab = 1;
-                        } else if tab.to_string().contains("Replay") {
-                            app.active_tabs = vec!["..".gray(), "Start".light_green()];
-                            app.tabs_path.push((tab, prev));
-                            app.active_tab = 1;
-                        } else if tab.to_string().contains("Start") {
-                            app.active_tabs = vec!["Stop".red().bold(), "Boost+".yellow()];
-                            app.tabs_path.push((tab, prev));
-                            app.active_tab = 0;
-                            if app.get_tabs_path().starts_with("Stress > Start") {
-                                let target = app.target.clone();
-                                let indicator = app.indicator.clone();
-                                let inner_indicator = app.indicator.clone();
-                                let signal = app.signal.clone();
-                                signal.set(0);
-                                inner_indicator.reset();
-                                app.reset();
-                                app.update_stress_start_at();
-                                thread::spawn(move || {
-                                    let runtime =
-                                        Builder::new_multi_thread().enable_all().build().unwrap();
-                                    let inner_signal = signal.clone();
-                                    runtime.block_on(async {
-                                        let r = Mongobar::new(&target)
-                                            .set_signal(signal)
-                                            .set_indicator(indicator)
-                                            .init()
-                                            .op_stress()
-                                            .await;
-                                        if let Err(err) = r {
-                                            eprintln!("Error: {}", err);
-                                        }
-                                    });
-                                    inner_signal.set(2);
-                                    inner_indicator
-                                        .take("logs")
-                                        .unwrap()
-                                        .push("Done".to_string());
-                                });
-                            }
-                        } else if tab.to_string().starts_with("Boost+")
-                            && app.get_tabs_path().starts_with("Stress > Start")
-                        {
-                            // let dyn_threads = app.indicator.take("dyn_threads").unwrap();
-
-                            app.show_popup = true;
-
-                            app.popup_input = "10".into();
-
-                            app.active_tabs = vec!["Cancel".light_red(), "Confirm".light_green()];
-                            app.tabs_path.push((tab, prev));
-                            app.active_tab = 1;
-                        } else if app.get_tabs_path().starts_with("Stress > Start > Boost+") {
-                            if tab.to_string().starts_with("Confirm") {
-                                let dyn_threads = app.indicator.take("dyn_threads").unwrap();
-                                let res_value = app.popup_input.value().parse::<usize>();
-                                if let Ok(value) = res_value {
-                                    dyn_threads.set(dyn_threads.get() + value);
-                                    app.show_popup = false;
-
-                                    let back = app.tabs_path.pop();
-                                    if let Some((_, tabs)) = back {
-                                        app.active_tabs = tabs;
-                                        app.active_tab = 1;
-                                    }
-                                } else {
-                                    app.popup_tip = "Invalid input.".to_string();
-                                }
-                            } else if tab.to_string().starts_with("Cancel") {
-                                app.show_popup = false;
-
-                                let back = app.tabs_path.pop();
-                                if let Some((_, tabs)) = back {
-                                    app.active_tabs = tabs;
-                                    app.active_tab = 1;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if app.popup_input.handle_event(&event).is_some() {
-                    // let mut stdout = stdout();
-
-                    // backend::write(
-                    //     &mut stdout,
-                    //     app.popup_input.value(),
-                    //     app.popup_input.cursor(),
-                    //     (0, 0),
-                    //     15,
-                    // )?;
-                    // stdout.flush()?;
-                }
+                EventType::Inner => {}
             }
+
+            app.popup_input.handle_event(&event);
         }
         if last_tick.elapsed() >= tick_rate {
             app.on_tick(tick_index);
@@ -415,13 +388,14 @@ fn run_app<B: Backend>(
 
 fn ui(frame: &mut Frame, app: &App) {
     let area = frame.size();
+    let cp = app.router.current_path();
 
-    if app.get_tabs_path().starts_with("Stress > Start") {
+    if cp.starts_with("/Stress/Start") {
         app.update_current_at();
         render_stress_view(frame, area, app);
-    } else if app.get_tabs_path().starts_with("Stress") {
+    } else if cp.starts_with("/Stress") {
         render_stress_start_view(frame, area, app);
-    } else if app.get_tabs_path().starts_with("Replay") {
+    } else if cp.starts_with("/Replay") {
         render_replay_view(frame, area, app);
     } else {
         render_main_view(frame, area, app);
@@ -564,24 +538,7 @@ fn render_progress(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_tabs(f: &mut Frame, area: Rect, app: &App) {
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .title(format!("Mongobar"));
-    let items: Vec<ListItem> = app
-        .active_tabs
-        .iter()
-        .enumerate()
-        .map(|(i, t)| {
-            if i == app.active_tab {
-                ListItem::new(t.clone()).bg(Color::DarkGray)
-            } else {
-                ListItem::new(t.clone())
-            }
-        })
-        .collect();
-    let list = List::new(items).block(block);
-
-    f.render_widget(list, area);
+    app.router.render(f, area);
 }
 
 fn render_log(f: &mut Frame, area: Rect, app: &App) {
@@ -654,7 +611,7 @@ fn render_chart(f: &mut Frame, area: Rect, app: &App) {
     ];
 
     let chart: Chart = Chart::new(datasets)
-        .block(Block::bordered().title(app.get_tabs_path()))
+        .block(Block::bordered().title(app.router.current_path()))
         .x_axis(
             Axis::default()
                 // .title("Progress")
@@ -675,4 +632,136 @@ fn render_chart(f: &mut Frame, area: Rect, app: &App) {
 
 fn normalize_to_100(x: f64, min: f64, max: f64) -> f64 {
     ((x - min) / (max - min)) * 100.0
+}
+
+#[derive(Debug, Clone, Copy)]
+enum RouteType {
+    Pop,
+    Push,
+    Quit,
+}
+
+#[derive(Debug, Clone)]
+struct Route {
+    rtype: RouteType,
+    label: String,
+    name: String,
+    span: Span<'static>,
+}
+
+impl Route {
+    fn new(rtype: RouteType, name: &str, label: &str) -> Self {
+        Self {
+            rtype,
+            label: label.to_string(),
+            span: match rtype {
+                RouteType::Push => Span::from(label.to_string()).fg(Color::Blue),
+                _ => Span::from(label.to_string()).fg(Color::Red),
+            },
+            name: name.to_string(),
+        }
+    }
+
+    fn with_span(mut self, span: Span<'static>) -> Self {
+        self.span = span.content(self.label.clone());
+        self
+    }
+}
+
+#[derive(Debug)]
+struct Router {
+    active_tabs: Vec<Route>,
+    active_tab: usize,
+    tabs_stack: Vec<(usize, Vec<Route>)>,
+}
+
+impl Router {
+    fn new(init_tabs: Vec<Route>) -> Self {
+        Self {
+            active_tabs: init_tabs,
+            active_tab: 0,
+            tabs_stack: vec![],
+        }
+    }
+
+    fn current_tab(&self) -> &Route {
+        self.active_tabs.get(self.active_tab).unwrap()
+    }
+
+    fn current_path(&self) -> String {
+        let r: Vec<String> = self
+            .tabs_stack
+            .iter()
+            .map(|v: &(usize, Vec<Route>)| v.1[v.0].name.clone())
+            .collect();
+        if r.is_empty() {
+            "".to_string()
+        } else {
+            format!("/{}", r.join("/"))
+        }
+    }
+
+    fn push(&mut self, tabs: Vec<Route>, active: usize) {
+        self.tabs_stack
+            .push((self.active_tab, self.active_tabs.drain(..).collect()));
+        self.active_tabs = tabs;
+        self.active_tab = active;
+    }
+
+    fn pop(&mut self) {
+        if let Some((active_tab, active_tabs)) = self.tabs_stack.pop() {
+            self.active_tab = active_tab;
+            self.active_tabs = active_tabs;
+        }
+    }
+
+    fn render(&self, f: &mut Frame, area: Rect) {
+        let block = Block::new().borders(Borders::ALL).title("Mongobar");
+        let items: Vec<ListItem> = self
+            .active_tabs
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                if i == self.active_tab {
+                    ListItem::new(t.span.clone()).bg(Color::DarkGray)
+                } else {
+                    ListItem::new(t.span.clone())
+                }
+            })
+            .collect();
+        let list = List::new(items).block(block);
+
+        f.render_widget(list, area);
+    }
+
+    fn event(&mut self, event: &Event) -> EventType {
+        if let Event::Key(key) = event {
+            if key.code == KeyCode::Char('q') {
+                return EventType::Quit;
+            }
+            if key.code == KeyCode::Up {
+                if self.active_tab > 0 {
+                    self.active_tab -= 1;
+                }
+            } else if key.code == KeyCode::Down {
+                if self.active_tab < self.active_tabs.len() - 1 {
+                    self.active_tab += 1;
+                }
+            } else if key.code == KeyCode::Enter {
+                let cp = self.current_path();
+                let ctab = self.current_tab();
+                let cptab = cp + "/" + ctab.name.as_str();
+                return EventType::Enter(cptab, ctab.rtype);
+            }
+        }
+
+        return EventType::Inner;
+    }
+}
+
+#[derive(Debug, Clone)]
+enum EventType {
+    Quit,
+    Enter(String, RouteType),
+    Inner,
 }
