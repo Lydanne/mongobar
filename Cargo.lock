@@ -1341,6 +1341,7 @@ dependencies = [
  "console-subscriber",
  "educe",
  "mongodb",
+ "rand",
  "ratatui 0.27.0",
  "serde",
  "serde_json",

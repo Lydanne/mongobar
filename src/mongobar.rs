@@ -274,10 +274,13 @@ impl Mongobar {
         let gate = Arc::new(tokio::sync::Barrier::new(thread_count as usize));
         let mut handles = vec![];
 
+        let dyn_threads = self.indicator.take("dyn_threads").unwrap();
+        let dyn_qps_limit = self.indicator.take("dyn_qps_limit").unwrap();
+
         let boot_worker = self.indicator.take("boot_worker").unwrap();
         let done_worker = self.indicator.take("done_worker").unwrap();
-        let dyn_threads = self.indicator.take("dyn_threads").unwrap();
         let query_count = self.indicator.take("query_count").unwrap();
+        let query_qps = self.indicator.take("query_qps").unwrap();
         // let in_size = Arc::new(AtomicUsize::new(0));
         // let out_size = Arc::new(AtomicUsize::new(0));
         let cost_ms = self.indicator.take("cost_ms").unwrap();
@@ -289,6 +292,25 @@ impl Mongobar {
             .take("thread_count")
             .unwrap()
             .set(thread_count as usize);
+
+        thread::spawn({
+            let signal = Arc::clone(&signal);
+            let query_count = query_count.clone();
+            let query_qps = query_qps.clone();
+            move || {
+                let mut last_query_count = 0;
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    let cur_query_count = query_count.get();
+                    let qps = cur_query_count - last_query_count;
+                    query_qps.set(qps);
+                    last_query_count = query_count.get();
+                    if signal.get() != 0 {
+                        break;
+                    }
+                }
+            }
+        });
 
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
 
@@ -322,7 +344,10 @@ impl Mongobar {
             let client = client_pool.get().await?;
             let signal = Arc::clone(&signal);
             let done_worker = done_worker.clone();
+            let dyn_qps_limit = dyn_qps_limit.clone();
+            let query_qps = query_qps.clone();
             let thread_count_num = thread_count;
+
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
@@ -347,6 +372,12 @@ impl Mongobar {
                     }
                     if signal.get() != 0 {
                         break;
+                    }
+                    let dyn_qps_limit_n = dyn_qps_limit.get();
+                    if dyn_qps_limit_n > 0 && query_qps.get() >= dyn_qps_limit_n {
+                        let rand = rand::random::<u64>() % 1000;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(rand)).await;
+                        continue;
                     }
                     for row in &op_rows {
                         if signal.get() != 0 {

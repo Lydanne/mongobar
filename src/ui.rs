@@ -76,7 +76,9 @@ impl App {
             "progress_total".to_string(),
             "thread_count".to_string(),
             "done_worker".to_string(),
+            "query_qps".to_string(),
             "dyn_threads".to_string(),
+            "dyn_qps_limit".to_string(),
         ]);
         Self {
             log_scroll: 0,
@@ -293,6 +295,7 @@ fn run_app<B: Backend>(
                             app.router.push(
                                 vec![
                                     Route::new(RouteType::Push, "Boost+", "Boost+"),
+                                    Route::new(RouteType::Push, "QPSLimit", "QPS Limit"),
                                     Route::new(RouteType::Push, "Stop", "Stop")
                                         .with_span(Span::default().fg(Color::Red)),
                                 ],
@@ -337,6 +340,7 @@ fn run_app<B: Backend>(
                         }
                         "/Stress/Start/Boost+" => {
                             app.show_popup = true;
+                            app.popup_title = "Boost Threads".to_string();
                             app.popup_input = Input::new("10".to_string());
                             app.router.push(
                                 vec![
@@ -359,6 +363,34 @@ fn run_app<B: Backend>(
                             }
                         }
                         "/Stress/Start/Boost+/Cancel" => {
+                            app.show_popup = false;
+                            app.router.pop();
+                        }
+                        "/Stress/Start/QPSLimit" => {
+                            app.show_popup = true;
+                            app.popup_input = Input::new("100".to_string());
+                            app.popup_title = "QPS Limit".to_string();
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Confirm", "Confirm"),
+                                    Route::new(RouteType::Push, "Cancel", "Cancel")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Stress/Start/QPSLimit/Confirm" => {
+                            let dyn_qps_limit = app.indicator.take("dyn_qps_limit").unwrap();
+                            let res_value = app.popup_input.value().parse::<usize>();
+                            if let Ok(value) = res_value {
+                                dyn_qps_limit.set(value);
+                                app.show_popup = false;
+                                app.router.pop();
+                            } else {
+                                app.popup_tip = "Invalid input.".to_string();
+                            }
+                        }
+                        "/Stress/Start/QPSLimit/Cancel" => {
                             app.show_popup = false;
                             app.router.pop();
                         }
@@ -548,6 +580,8 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let thread_count = app.indicator.take("thread_count").unwrap().get();
     let boot_worker = app.indicator.take("boot_worker").unwrap().get();
     let dyn_threads = app.indicator.take("dyn_threads").unwrap().get();
+    let dyn_qps_limit = app.indicator.take("dyn_qps_limit").unwrap().get();
+    // let query_qps = app.indicator.take("query_qps").unwrap().get();
 
     let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
@@ -556,12 +590,13 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             boot_worker, thread_count, dyn_threads
         )),
         Line::from(format!(
-            "> Query : {:.2}/s {}/s",
+            "> Query : avg_qps({:.2}/s qps({}/s) limit({}/s)",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64,
-            app.diff_query_count
+            app.diff_query_count,
+            dyn_qps_limit,
         )),
         Line::from(format!(
-            "> Cost  : {:.2}ms {:.2}/ms",
+            "> Cost  : avg_dur({:.2}ms) dur({:.2}ms)",
             (cost_ms as f64) / query_count as f64,
             app.diff_cost
         )),
