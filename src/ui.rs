@@ -369,7 +369,7 @@ fn run_app<B: Backend>(
                         }
                         "/Stress/Start/CCLimit" => {
                             app.show_popup = true;
-                            app.popup_input = Input::new("100".to_string());
+                            app.popup_input = Input::new("1".to_string());
                             app.popup_title = "CCLimit".to_string();
                             app.router.push(
                                 vec![
