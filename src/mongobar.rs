@@ -20,7 +20,7 @@ use tokio::time::Instant;
 
 use crate::{indicator::Indicator, ui};
 
-mod op_row;
+pub mod op_row;
 
 mod mongobar_config;
 

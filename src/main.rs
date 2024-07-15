@@ -74,7 +74,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
         Commands::UI(ui) => {
-            let _ = ui::boot(&ui.target);
+            let _ = ui::boot(ui);
         }
     }
 

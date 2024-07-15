@@ -28,17 +28,22 @@ use tokio::runtime::Builder;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
+    commands::UI,
     indicator::{self, Metric},
     mongobar::Mongobar,
     IND_KEYS,
 };
 
+use crate::mongobar::op_row;
+
 struct App {
-    log_scroll: u16,
+    oplog_scroll: (u16, u16),
+    oplogs: Vec<op_row::OpRow>,
 
     router: Router,
 
-    target: String,
+    ui: UI,
+
     indicator: indicator::Indicator,
     signal: Arc<crate::signal::Signal>, // 0 初始状态，1 是停止，2 是停止成功
 
@@ -67,10 +72,11 @@ struct App {
 }
 
 impl App {
-    fn new() -> Self {
+    fn new(ui: UI) -> Self {
         let indic = indicator::Indicator::new().init(IND_KEYS.clone());
         Self {
-            log_scroll: 0,
+            oplog_scroll: (0, 0),
+            oplogs: vec![],
 
             router: Router::new(vec![
                 Route::new(RouteType::Push, "Stress", "Stress"),
@@ -78,7 +84,7 @@ impl App {
                 Route::new(RouteType::Quit, "Quit", "Quit"),
             ]),
 
-            target: "".to_string(),
+            ui: ui,
 
             indicator: indic,
             signal: Arc::new(crate::signal::Signal::new()),
@@ -213,7 +219,7 @@ impl App {
     }
 }
 
-pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
+pub fn boot(ui: UI) -> Result<(), Box<dyn Error>> {
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -223,8 +229,7 @@ pub fn boot(target: &str) -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(100);
-    let mut app = App::new();
-    app.target = target.to_string();
+    let mut app = App::new(ui);
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
@@ -265,6 +270,7 @@ fn run_app<B: Backend>(
                         "/Stress" => {
                             app.router.push(
                                 vec![
+                                    Route::new(RouteType::Push, "OpLog", "OpLog"),
                                     Route::new(RouteType::Push, "Start", "Start"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
@@ -280,6 +286,31 @@ fn run_app<B: Backend>(
                                 0,
                             );
                         }
+                        "/Stress/OpLog" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "ScrollUP", "ScrollUP"),
+                                    Route::new(RouteType::Push, "ScrollDown", "ScrollDown"),
+                                    Route::new(RouteType::Pop, "Back", "Back"),
+                                ],
+                                0,
+                            );
+                            let target = app.ui.target.clone();
+
+                            let r = Mongobar::new(&target)
+                                .set_filter(app.ui.filter.clone())
+                                .init();
+
+                            app.oplogs = r.op_rows;
+                        }
+                        "/Stress/OpLog/ScrollUP" => {
+                            if app.oplog_scroll.0 > 0 {
+                                app.oplog_scroll.0 -= 1;
+                            }
+                        }
+                        "/Stress/OpLog/ScrollDown" => {
+                            app.oplog_scroll.0 += 1;
+                        }
                         "/Stress/Start" => {
                             app.router.push(
                                 vec![
@@ -294,7 +325,8 @@ fn run_app<B: Backend>(
                             app.update_stress_start_at();
                             app.reset();
 
-                            let target = app.target.clone();
+                            let target = app.ui.target.clone();
+                            let filter = app.ui.filter.clone();
                             let indicator = app.indicator.clone();
                             let inner_indicator = app.indicator.clone();
                             let signal = app.signal.clone();
@@ -309,6 +341,7 @@ fn run_app<B: Backend>(
                                     let r = Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .set_filter(filter)
                                         .init()
                                         .op_stress()
                                         .await;
@@ -417,6 +450,8 @@ fn ui(frame: &mut Frame, app: &App) {
     if cp.starts_with("/Stress/Start") {
         app.update_current_at();
         render_stress_view(frame, area, app);
+    } else if cp.starts_with("/Stress/OpLog") {
+        render_oplog_view(frame, area, app);
     } else if cp.starts_with("/Stress") {
         render_stress_start_view(frame, area, app);
     } else if cp.starts_with("/Replay") {
@@ -428,6 +463,35 @@ fn ui(frame: &mut Frame, app: &App) {
     if app.show_popup {
         render_popup(frame, area, app);
     }
+}
+
+fn render_oplog_view(frame: &mut Frame, area: Rect, app: &App) {
+    let [tab, content] =
+        Layout::horizontal([Constraint::Percentage(10), Constraint::Percentage(90)]).areas(area);
+
+    render_tabs(frame, tab, app);
+    render_oplogs(frame, content, app);
+}
+
+fn render_oplogs(frame: &mut Frame, area: Rect, app: &App) {
+    let logs = &app.oplogs;
+    let block = Block::new()
+        .borders(Borders::ALL)
+        .title(format!("OpLogs: {}", logs.len()));
+    let paragraph = Paragraph::new(
+        logs.iter()
+            .map(|v| {
+                Line::from(format!(
+                    "> id: {}, op: {:?}, ns: {}, ts: {}, cmd:{:?}",
+                    v.id, v.op, v.ns, v.ts, v.cmd
+                ))
+            })
+            .collect::<Vec<_>>(),
+    )
+    .style(Style::default().fg(Color::Gray))
+    .block(block)
+    .scroll(app.oplog_scroll);
+    frame.render_widget(paragraph, area);
 }
 
 fn render_popup(frame: &mut Frame, area: Rect, app: &App) {
@@ -497,7 +561,7 @@ fn render_main_view(frame: &mut Frame, area: Rect, app: &App) {
         app,
         &format!(
             "Welcome to Mongobar\n\nCurrent: {}\n\nPress Enter to start...",
-            &app.target,
+            &app.ui.target,
         ),
     );
 }
@@ -608,7 +672,7 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let paragraph = Paragraph::new(text.clone())
         .style(Style::default().fg(Color::Gray))
         .block(block)
-        .scroll((app.log_scroll, 0));
+        .scroll(app.oplog_scroll);
     f.render_widget(paragraph, area);
 }
 
