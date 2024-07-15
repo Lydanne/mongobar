@@ -264,7 +264,7 @@ fn run_app<B: Backend>(
             let event = event::read()?;
 
             match app.router.event(&event) {
-                EventType::Enter(cptab, rtype) => {
+                EventType::Click(cptab, rtype) => {
                     // println!("Enter: {}, {:?}", cptab, rtype);
                     match cptab.as_str() {
                         "/Stress" => {
@@ -842,7 +842,7 @@ impl Router {
                 let cp = self.current_path();
                 let ctab = self.current_tab();
                 let cptab = cp + "/" + ctab.name.as_str();
-                return EventType::Enter(cptab, ctab.rtype);
+                return EventType::Click(cptab, ctab.rtype);
             }
         }
 
@@ -853,6 +853,6 @@ impl Router {
 #[derive(Debug, Clone)]
 enum EventType {
     Quit,
-    Enter(String, RouteType),
+    Click(String, RouteType),
     Inner,
 }
