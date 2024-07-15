@@ -13,12 +13,10 @@
 
 A mongo stress testing tool written in rust.
 
-<div align="center">
-  <p style="display: flex">
-    <img src="./assets/home.png" width="50%" />
-    <img src="./assets/stress.png" width="50%" />
-  </p>
-</div>
+<p align="center">
+    <img src="./assets/home.png" width="45%" />
+    <img src="./assets/stress.png" width="45%" />
+</p>
 
 TODO..
 
