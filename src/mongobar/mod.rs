@@ -1,30 +1,24 @@
 use std::{
-    collections::HashMap,
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::{self},
     path::PathBuf,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    thread,
+    sync::Arc,
 };
 
 use bson::{doc, DateTime};
 
-use mongodb::{action::Single, bson::Document, options::ClientOptions, Client, Collection, Cursor};
+use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-use crate::{indicator::Indicator, ui};
-
-pub mod op_row;
+use crate::indicator::Indicator;
 
 mod mongobar_config;
 
 mod op_state;
+
+pub mod op_logs;
+pub mod op_row;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Mongobar {
@@ -32,7 +26,7 @@ pub(crate) struct Mongobar {
     pub(crate) name: String,
 
     pub(crate) op_workdir: PathBuf,
-    pub(crate) op_rows: Vec<op_row::OpRow>,
+    pub(crate) op_logs: Arc<op_logs::OpLogs>,
     pub(crate) op_file_padding: PathBuf,
     pub(crate) op_file_done: PathBuf,
     pub(crate) op_file_resume: PathBuf,
@@ -54,11 +48,12 @@ impl Mongobar {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
         let dir: PathBuf = cur_cwd.join("runtime");
         let workdir: PathBuf = dir.join(name);
+        let op_file_padding = workdir.join(PathBuf::from("padding.op"));
         Self {
             name: name.to_string(),
             op_workdir: workdir.clone(),
-            op_rows: Vec::new(),
-            op_file_padding: workdir.join(PathBuf::from("padding.op")),
+            op_logs: Arc::new(op_logs::OpLogs::new(op_file_padding.clone())),
+            op_file_padding,
             op_file_done: workdir.join(PathBuf::from("done.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
             config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
@@ -90,7 +85,7 @@ impl Mongobar {
 
         self.load_config();
         self.load_state();
-        self.load_op_rows();
+        // self.load_op_rows();
 
         return self;
     }
@@ -143,19 +138,6 @@ impl Mongobar {
         fs::write(&self.op_state_file, content).unwrap();
     }
 
-    pub fn add_row(&mut self, row: op_row::OpRow) {
-        let mut file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .append(true)
-            .open(&self.op_file_padding)
-            .unwrap();
-        let content = serde_json::to_string(&row.clone()).unwrap();
-        writeln!(file, "{}", content).unwrap();
-
-        self.op_rows.push(row);
-    }
-
     pub fn add_row_by_profile(&mut self, doc: &Document) {
         let ns = doc.get_str("ns").unwrap().to_string();
         if ns.contains("system.profile") {
@@ -186,25 +168,25 @@ impl Mongobar {
             _ => {}
         }
         // println!("{:?}", row);
-        self.add_row(row);
+        self.op_logs.push(row);
     }
 
-    pub fn load_op_rows(&mut self) {
-        let content = fs::read_to_string(&self.op_file_padding).unwrap();
-        let rows: Vec<op_row::OpRow> = content
-            .split("\n")
-            .filter(|v| !v.is_empty())
-            .filter(|v| {
-                if let Some(filter) = &self.op_filter {
-                    return filter.is_match(v);
-                }
-                return true;
-            })
-            .map(|v| serde_json::from_str(v).unwrap())
-            .collect();
+    // pub fn load_op_rows(&mut self) {
+    //     let content = fs::read_to_string(&self.op_file_padding).unwrap();
+    //     let rows: Vec<op_row::OpRow> = content
+    //         .split("\n")
+    //         .filter(|v| !v.is_empty())
+    //         .filter(|v| {
+    //             if let Some(filter) = &self.op_filter {
+    //                 return filter.is_match(v);
+    //             }
+    //             return true;
+    //         })
+    //         .map(|v| serde_json::from_str(v).unwrap())
+    //         .collect();
 
-        self.op_rows = rows;
-    }
+    //     self.op_logs = rows;
+    // }
     /// 录制逻辑：
     /// 1. 【程序】标记开始时间 毫秒
     /// 2. 【人工】操作具体业务
@@ -351,9 +333,9 @@ impl Mongobar {
                 continue;
             }
             // -------------------------------------
-            let thread_index = created_thread_count;
+            let thread_index = created_thread_count as usize;
             let gate = gate.clone();
-            let op_rows = self.op_rows.clone();
+            let op_rows = self.op_logs.clone();
 
             // let out_size = out_size.clone();
             // let in_size = in_size.clone();
@@ -373,7 +355,7 @@ impl Mongobar {
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
-                if thread_index < thread_count_num as i32 {
+                if thread_index < thread_count_num as usize {
                     gate.wait().await;
                 }
                 // println!(
@@ -401,7 +383,8 @@ impl Mongobar {
                         tokio::time::sleep(tokio::time::Duration::from_millis(rand)).await;
                         continue;
                     }
-                    for row in &op_rows {
+                    let mut row_index = 0;
+                    while let Some(row) = op_rows.iter(thread_index, row_index) {
                         if signal.get() != 0 {
                             break;
                         }
@@ -436,6 +419,7 @@ impl Mongobar {
                         }
 
                         querying.decrement();
+                        row_index += 1;
                     }
                 }
 
@@ -448,7 +432,7 @@ impl Mongobar {
                 self.indicator.take("progress_total").unwrap().set(0);
             } else {
                 self.indicator.take("progress_total").unwrap().set(
-                    self.op_rows.len()
+                    self.op_logs.len()
                         * loop_count as usize
                         * (thread_count as usize + dyn_threads_num),
                 );

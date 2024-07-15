@@ -68,7 +68,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             println!(
                 "OPStress [{}] Start {} rows.",
                 chrono::Local::now().timestamp(),
-                m.op_rows.len()
+                m.op_logs.len()
             );
             m.op_stress().await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());

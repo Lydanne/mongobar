@@ -303,7 +303,7 @@ fn run_app<B: Backend>(
                                 .set_filter(app.ui.filter.clone())
                                 .init();
 
-                            app.oplogs = r.op_rows;
+                            app.oplogs = r.op_logs.limit(0, 100).to_vec();
                         }
                         "/Stress/OpLog/ScrollUP" => {
                             if app.oplog_scroll.0 > 0 {
