@@ -12,7 +12,7 @@ mod mongobar;
 mod signal;
 mod ui;
 
-static IND_KEYS: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+pub fn ind_keys() -> Vec<String> {
     vec![
         "boot_worker".to_string(),
         "query_count".to_string(),
@@ -27,7 +27,7 @@ static IND_KEYS: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| 
         "dyn_threads".to_string(),
         "dyn_cc_limit".to_string(),
     ]
-});
+}
 
 async fn boot() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -59,7 +59,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
         Commands::OPStress(op_stress) => {
-            let indic = indicator::Indicator::new().init(IND_KEYS.clone());
+            let indic = indicator::Indicator::new().init(ind_keys());
             print_indicator(&indic);
             let m = mongobar::Mongobar::new(&op_stress.target)
                 .set_indicator(indic)

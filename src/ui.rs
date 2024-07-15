@@ -29,9 +29,9 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
     commands::UI,
+    ind_keys,
     indicator::{self, Metric},
     mongobar::Mongobar,
-    IND_KEYS,
 };
 
 use crate::mongobar::op_row;
@@ -73,7 +73,7 @@ struct App {
 
 impl App {
     fn new(ui: UI) -> Self {
-        let indic = indicator::Indicator::new().init(IND_KEYS.clone());
+        let indic = indicator::Indicator::new().init(ind_keys());
         Self {
             oplog_scroll: (0, 0),
             oplogs: vec![],
