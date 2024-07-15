@@ -855,10 +855,14 @@ impl Router {
             if key.code == KeyCode::Up {
                 if self.active_tab > 0 {
                     self.active_tab -= 1;
+                } else {
+                    self.active_tab = self.active_tabs.len() - 1;
                 }
             } else if key.code == KeyCode::Down {
                 if self.active_tab < self.active_tabs.len() - 1 {
                     self.active_tab += 1;
+                } else {
+                    self.active_tab = 0;
                 }
             } else if key.code == KeyCode::Enter {
                 let cp = self.current_path();
