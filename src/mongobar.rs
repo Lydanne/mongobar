@@ -351,7 +351,7 @@ impl Mongobar {
                 continue;
             }
             // -------------------------------------
-            let i = created_thread_count;
+            let thread_index = created_thread_count;
             let gate = gate.clone();
             let op_rows = self.op_rows.clone();
 
@@ -373,7 +373,7 @@ impl Mongobar {
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
-                if i < thread_count_num as i32 {
+                if thread_index < thread_count_num as i32 {
                     gate.wait().await;
                 }
                 // println!(
@@ -420,7 +420,7 @@ impl Mongobar {
                                     logs.push(format!(
                                         "OPStress [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
-                                        i,
+                                        thread_index,
                                         e
                                     ));
                                 }
