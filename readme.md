@@ -11,14 +11,12 @@
 
 # Mongobar
 
-A mongo stress testing tool written in rust.
-
 <p align="center">
     <img src="./assets/home.png" width="45%" />
     <img src="./assets/stress.png" width="45%" />
 </p>
 
-TODO..
+A mongo stress testing tool written in rust.
 
 ## About
 
