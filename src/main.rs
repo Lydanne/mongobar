@@ -12,6 +12,23 @@ mod mongobar;
 mod signal;
 mod ui;
 
+static IND_KEYS: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+    vec![
+        "boot_worker".to_string(),
+        "query_count".to_string(),
+        "cost_ms".to_string(),
+        "progress".to_string(),
+        "logs".to_string(),
+        "progress_total".to_string(),
+        "thread_count".to_string(),
+        "done_worker".to_string(),
+        "query_qps".to_string(),
+        "querying".to_string(),
+        "dyn_threads".to_string(),
+        "dyn_cc_limit".to_string(),
+    ]
+});
+
 async fn boot() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
@@ -42,23 +59,18 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
         Commands::OPStress(op_stress) => {
-            let indic = indicator::Indicator::new().init(vec![
-                "boot_worker".to_string(),
-                "query_count".to_string(),
-                "cost_ms".to_string(),
-                "progress".to_string(),
-                "logs".to_string(),
-                "progress_total".to_string(),
-                "thread_count".to_string(),
-                "done_worker".to_string(),
-                "dyn_threads".to_string(),
-            ]);
+            let indic = indicator::Indicator::new().init(IND_KEYS.clone());
             print_indicator(&indic);
-            mongobar::Mongobar::new(&op_stress.target)
+            let m = mongobar::Mongobar::new(&op_stress.target)
                 .set_indicator(indic)
-                .init()
-                .op_stress()
-                .await?;
+                .set_filter(op_stress.filter)
+                .init();
+            println!(
+                "OPStress [{}] Start {} rows.",
+                chrono::Local::now().timestamp(),
+                m.op_rows.len()
+            );
+            m.op_stress().await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
         Commands::UI(ui) => {

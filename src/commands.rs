@@ -42,10 +42,18 @@ pub struct OPRecord {
 pub struct OPStress {
     /// eg: qxg
     pub target: String,
+
+    /// regex filter oplog
+    #[clap(short, long)]
+    pub filter: Option<String>,
 }
 
 #[derive(clap::Parser, Debug)]
 pub struct UI {
     /// eg: qxg
     pub target: String,
+
+    /// regex filter oplog
+    #[clap(short, long)]
+    pub filter: Option<String>,
 }

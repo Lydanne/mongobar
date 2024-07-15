@@ -14,6 +14,7 @@ use bson::{doc, DateTime};
 
 use mongodb::{action::Single, bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
@@ -43,6 +44,8 @@ pub(crate) struct Mongobar {
 
     pub(crate) indicator: Indicator,
     pub(crate) signal: Arc<crate::signal::Signal>,
+
+    pub(crate) op_filter: Option<Regex>,
 }
 
 impl Mongobar {
@@ -65,6 +68,8 @@ impl Mongobar {
             indicator: Indicator::new(),
 
             signal: Arc::new(crate::signal::Signal::new()),
+
+            op_filter: None,
         }
     }
 
@@ -86,6 +91,13 @@ impl Mongobar {
         self.load_op_rows();
 
         return self;
+    }
+
+    pub fn set_filter(mut self, filter: Option<String>) -> Self {
+        if let Some(filter) = filter {
+            self.op_filter = Some(Regex::new(&filter).unwrap());
+        }
+        self
     }
 
     pub fn set_indicator(mut self, indicator: Indicator) -> Self {
@@ -180,6 +192,12 @@ impl Mongobar {
         let rows: Vec<op_row::OpRow> = content
             .split("\n")
             .filter(|v| !v.is_empty())
+            .filter(|v| {
+                if let Some(filter) = &self.op_filter {
+                    return filter.is_match(v);
+                }
+                return true;
+            })
             .map(|v| serde_json::from_str(v).unwrap())
             .collect();
 

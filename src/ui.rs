@@ -30,6 +30,7 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 use crate::{
     indicator::{self, Metric},
     mongobar::Mongobar,
+    IND_KEYS,
 };
 
 struct App {
@@ -67,20 +68,7 @@ struct App {
 
 impl App {
     fn new() -> Self {
-        let indic = indicator::Indicator::new().init(vec![
-            "boot_worker".to_string(),
-            "query_count".to_string(),
-            "cost_ms".to_string(),
-            "progress".to_string(),
-            "logs".to_string(),
-            "progress_total".to_string(),
-            "thread_count".to_string(),
-            "done_worker".to_string(),
-            "query_qps".to_string(),
-            "querying".to_string(),
-            "dyn_threads".to_string(),
-            "dyn_cc_limit".to_string(),
-        ]);
+        let indic = indicator::Indicator::new().init(IND_KEYS.clone());
         Self {
             log_scroll: 0,
 
