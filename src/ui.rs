@@ -264,7 +264,7 @@ fn run_app<B: Backend>(
             let event = event::read()?;
 
             match app.router.event(&event) {
-                EventType::Click(cptab, rtype) => {
+                EventType::Click(cptab, rtype, keycode) => {
                     // println!("Enter: {}, {:?}", cptab, rtype);
                     match cptab.as_str() {
                         "/Stress" => {
@@ -291,6 +291,8 @@ fn run_app<B: Backend>(
                                 vec![
                                     Route::new(RouteType::Push, "ScrollUP", "ScrollUP"),
                                     Route::new(RouteType::Push, "ScrollDown", "ScrollDown"),
+                                    Route::new(RouteType::Push, "ScrollLeft", "ScrollLeft"),
+                                    Route::new(RouteType::Push, "ScrollRight", "ScrollRight"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
                                 0,
@@ -310,6 +312,26 @@ fn run_app<B: Backend>(
                         }
                         "/Stress/OpLog/ScrollDown" => {
                             app.oplog_scroll.0 += 1;
+                        }
+                        "/Stress/OpLog/ScrollLeft" => {
+                            if keycode == KeyCode::Left {
+                                if app.oplog_scroll.1 > 10 {
+                                    app.oplog_scroll.1 -= 10;
+                                } else {
+                                    app.oplog_scroll.1 = 0;
+                                }
+                            } else {
+                                if app.oplog_scroll.1 > 0 {
+                                    app.oplog_scroll.1 -= 1;
+                                }
+                            }
+                        }
+                        "/Stress/OpLog/ScrollRight" => {
+                            if keycode == KeyCode::Right {
+                                app.oplog_scroll.1 += 10;
+                            } else {
+                                app.oplog_scroll.1 += 1;
+                            }
                         }
                         "/Stress/Start" => {
                             app.router.push(
@@ -842,7 +864,17 @@ impl Router {
                 let cp = self.current_path();
                 let ctab = self.current_tab();
                 let cptab = cp + "/" + ctab.name.as_str();
-                return EventType::Click(cptab, ctab.rtype);
+                return EventType::Click(cptab, ctab.rtype, key.code);
+            } else if key.code == KeyCode::Left {
+                let cp = self.current_path();
+                let ctab = self.current_tab();
+                let cptab = cp + "/" + ctab.name.as_str();
+                return EventType::Click(cptab, ctab.rtype, key.code);
+            } else if key.code == KeyCode::Right {
+                let cp = self.current_path();
+                let ctab = self.current_tab();
+                let cptab = cp + "/" + ctab.name.as_str();
+                return EventType::Click(cptab, ctab.rtype, key.code);
             }
         }
 
@@ -853,6 +885,6 @@ impl Router {
 #[derive(Debug, Clone)]
 enum EventType {
     Quit,
-    Click(String, RouteType),
+    Click(String, RouteType, KeyCode),
     Inner,
 }
