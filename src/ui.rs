@@ -395,6 +395,9 @@ fn run_app<B: Backend>(
                             app.show_popup = false;
                             app.router.pop();
                         }
+                        "/Quit" => {
+                            return Ok(());
+                        }
                         _ => {}
                     }
 
