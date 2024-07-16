@@ -6,3 +6,5 @@ docker/data/mongodb/mongo2/data
 docker/data/mongodb/mongo3/data
 runtime
 mongobar.json
+.env
+tmp
