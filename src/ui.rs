@@ -659,6 +659,7 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let logs = app.indicator.take("logs").unwrap();
     let cost_ms = app.indicator.take("cost_ms").unwrap().get();
     let query_count = app.indicator.take("query_count").unwrap().get();
+    let querying = app.indicator.take("querying").unwrap().get();
     let thread_count = app.indicator.take("thread_count").unwrap().get();
     let boot_worker = app.indicator.take("boot_worker").unwrap().get();
     let dyn_threads = app.indicator.take("dyn_threads").unwrap().get();
@@ -672,9 +673,10 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             boot_worker, thread_count, dyn_threads
         )),
         Line::from(format!(
-            "> Query : avg_qps({:.2}/s) qps({}/s) limit({})",
+            "> Query : avg_qps({:.2}/s) qps({}/s) cc({}) limit({})",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64,
             app.diff_query_count,
+            querying,
             dyn_cc_limit,
         )),
         Line::from(format!(
