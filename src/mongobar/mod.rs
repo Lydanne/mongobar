@@ -369,7 +369,7 @@ impl Mongobar {
                                     logs.push(format!(
                                         "OPStress [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
-                                        thread_index,
+                                        row.id,
                                         e
                                     ));
                                 }

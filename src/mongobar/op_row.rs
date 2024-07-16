@@ -11,7 +11,6 @@ pub(crate) struct OpRow {
     pub cmd: Document,
     pub ns: String,
     pub ts: i64,
-    pub st: Status,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
@@ -22,6 +21,8 @@ pub(crate) enum Op {
     Update,
     Delete,
     Query,
+    Count,
+    Aggregate,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]

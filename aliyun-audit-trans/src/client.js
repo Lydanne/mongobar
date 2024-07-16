@@ -78,11 +78,11 @@ class Client {
     const OpMap = {
       "find": "Query",
       "update": "Update",
-      "count": "Query",
+      "count": "Count",
       "getMore": "Query",
       "insert": "Insert",
       "delete": "Delete",
-      "aggregate": "Query",
+      "aggregate": "Aggregate",
       "findAndModify": "Update",
     }
     let stats = {
@@ -90,6 +90,8 @@ class Client {
       Insert: 0,
       Update: 0,
       Delete: 0,
+      Count: 0,
+      Aggregate: 0,
     }
     data.forEach((item) => {
       // op_row => {"id":"A300CFDE","op":"Query","db":"xgj","coll":"classes","cmd":{"find":"classes","filter":{"_id":{"$in":[{"$oid":"60ee8954fed35014bf22675a"}]}},"projection":{},"$readPreference":{"mode":"secondaryPreferred"}},"ns":"xgj.classes","ts":1720432985163,"st":"None"}
@@ -102,14 +104,17 @@ class Client {
       delete cmd.lsid;
       delete cmd.$clusterTime;
       delete cmd.$db;
+      delete cmd.cursor;
+      deepTraverseAndConvert(cmd);
+      const [db, coll] = Syntax.ns.split('.');
       const op_row = {
         id: md5(JSON.stringify(item)),
         op: op,
         db: item.DBName,
-        coll: Syntax.args.find,
-        cmd: Syntax.args,
+        coll,
+        cmd,
         ns: Syntax.ns,
-        ts: item.ExecuteTime,
+        ts: Date.parse(item.ExecuteTime),
       }
       appendFile('./tmp/oplogs.op', JSON.stringify(op_row) + '\n', (err) => {
         if (err) throw err;
@@ -151,4 +156,31 @@ const crypto = require('crypto');
 
 function md5(content) {
   return crypto.createHash('md5').update(content).digest('hex');
+}
+
+function convertToRFC3339(dateStr) {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) {
+    return dateStr;
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
+}
+
+
+function deepTraverseAndConvert(obj) {
+  for (const key in obj) {
+    if (typeof obj[key] === 'string') {
+      obj[key] = convertToRFC3339(obj[key]);
+    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+      deepTraverseAndConvert(obj[key]);
+    }
+  }
 }
