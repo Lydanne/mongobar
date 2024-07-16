@@ -381,6 +381,51 @@ impl Mongobar {
                                 //     in_size.fetch_add(sum, Ordering::Relaxed);
                                 // }
                             }
+                            op_row::Op::Count => {
+                                let db = client.database(&row.db);
+                                // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
+                                let start = Instant::now();
+                                let res = db.run_command(row.cmd.clone()).await;
+                                let end = start.elapsed();
+                                cost_ms.add(end.as_millis() as usize);
+                                query_count.increment();
+                                if let Err(e) = &res {
+                                    logs.push(format!(
+                                        "OPStress [{}] [{}]\t err {}",
+                                        chrono::Local::now().timestamp(),
+                                        row.id,
+                                        e
+                                    ));
+                                }
+                            }
+                            op_row::Op::Aggregate => {
+                                let db = client.database(&row.db);
+                                // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
+                                let get_document: Vec<Document> = row
+                                    .cmd
+                                    .get_array("pipeline")
+                                    .unwrap()
+                                    .clone()
+                                    .iter()
+                                    .map(|v| v.as_document().unwrap().clone())
+                                    .collect();
+                                let start = Instant::now();
+                                let res = db
+                                    .collection::<Document>(&row.coll)
+                                    .aggregate(get_document)
+                                    .await;
+                                let end = start.elapsed();
+                                cost_ms.add(end.as_millis() as usize);
+                                query_count.increment();
+                                if let Err(e) = &res {
+                                    logs.push(format!(
+                                        "OPStress [{}] [{}]\t err {}",
+                                        chrono::Local::now().timestamp(),
+                                        row.id,
+                                        e
+                                    ));
+                                }
+                            }
                             _ => {}
                         }
 
