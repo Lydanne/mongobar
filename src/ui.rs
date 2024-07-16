@@ -280,8 +280,8 @@ fn run_app<B: Backend>(
                         "/Replay" => {
                             app.router.push(
                                 vec![
+                                    Route::new(RouteType::Push, "Start", "Start"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
-                                    Route::new(RouteType::Quit, "Quit", "Quit"),
                                 ],
                                 0,
                             );
@@ -440,6 +440,110 @@ fn run_app<B: Backend>(
                             app.show_popup = false;
                             app.router.pop();
                         }
+                        "/Replay/Start" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Boost+", "Boost+"),
+                                    Route::new(RouteType::Push, "CCLimit", "CCLimit"),
+                                    Route::new(RouteType::Push, "Stop", "Stop")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+
+                            app.update_stress_start_at();
+                            app.reset();
+
+                            let target = app.ui.target.clone();
+                            let filter = app.ui.filter.clone();
+                            let indicator = app.indicator.clone();
+                            let inner_indicator = app.indicator.clone();
+                            let signal = app.signal.clone();
+
+                            inner_indicator.reset();
+
+                            thread::spawn(move || {
+                                let runtime =
+                                    Builder::new_multi_thread().enable_all().build().unwrap();
+                                let inner_signal = signal.clone();
+                                runtime.block_on(async {
+                                    let r = Mongobar::new(&target)
+                                        .set_signal(signal)
+                                        .set_indicator(indicator)
+                                        .init()
+                                        .op_replay()
+                                        .await;
+                                    if let Err(err) = r {
+                                        eprintln!("Error: {}", err);
+                                    }
+                                });
+                                inner_signal.set(2);
+                                inner_indicator
+                                    .take("logs")
+                                    .unwrap()
+                                    .push("Done".to_string());
+                            });
+                        }
+                        "/Replay/Start/Stop" => {
+                            app.signal.set(1);
+                            app.router.pop();
+                        }
+                        "/Replay/Start/Boost+" => {
+                            app.show_popup = true;
+                            app.popup_title = "Boost Threads".to_string();
+                            app.popup_input = Input::new("10".to_string());
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Confirm", "Confirm"),
+                                    Route::new(RouteType::Push, "Cancel", "Cancel")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Replay/Start/Boost+/Confirm" => {
+                            let dyn_threads = app.indicator.take("dyn_threads").unwrap();
+                            let res_value = app.popup_input.value().parse::<usize>();
+                            if let Ok(value) = res_value {
+                                dyn_threads.set(dyn_threads.get() + value);
+                                app.show_popup = false;
+                                app.router.pop();
+                            } else {
+                                app.popup_tip = "Invalid input.".to_string();
+                            }
+                        }
+                        "/Replay/Start/Boost+/Cancel" => {
+                            app.show_popup = false;
+                            app.router.pop();
+                        }
+                        "/Replay/Start/CCLimit" => {
+                            app.show_popup = true;
+                            app.popup_input = Input::new("1".to_string());
+                            app.popup_title = "CCLimit".to_string();
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Confirm", "Confirm"),
+                                    Route::new(RouteType::Push, "Cancel", "Cancel")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+                        }
+                        "/Replay/Start/CCLimit/Confirm" => {
+                            let dyn_cc_limit = app.indicator.take("dyn_cc_limit").unwrap();
+                            let res_value = app.popup_input.value().parse::<usize>();
+                            if let Ok(value) = res_value {
+                                dyn_cc_limit.set(value);
+                                app.show_popup = false;
+                                app.router.pop();
+                            } else {
+                                app.popup_tip = "Invalid input.".to_string();
+                            }
+                        }
+                        "/Replay/Start/CCLimit/Cancel" => {
+                            app.show_popup = false;
+                            app.router.pop();
+                        }
                         "/Quit" => {
                             return Ok(());
                         }
@@ -478,8 +582,13 @@ fn ui(frame: &mut Frame, app: &App) {
         render_oplog_view(frame, area, app);
     } else if cp.starts_with("/Stress") {
         render_stress_start_view(frame, area, app);
+    } else if cp.starts_with("/Replay/Start") {
+        app.update_current_at();
+        render_stress_view(frame, area, app);
+    } else if cp.starts_with("/Replay/OpLog") {
+        render_oplog_view(frame, area, app);
     } else if cp.starts_with("/Replay") {
-        render_replay_view(frame, area, app);
+        render_stress_start_view(frame, area, app);
     } else {
         render_main_view(frame, area, app);
     }
