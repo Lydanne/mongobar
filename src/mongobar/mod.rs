@@ -20,7 +20,7 @@ mod op_state;
 pub mod op_logs;
 pub mod op_row;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(crate) struct Mongobar {
     pub(crate) dir: PathBuf,
     pub(crate) name: String,
@@ -52,7 +52,9 @@ impl Mongobar {
         Self {
             name: name.to_string(),
             op_workdir: workdir.clone(),
-            op_logs: Arc::new(op_logs::OpLogs::new(op_file_padding.clone())),
+            op_logs: Arc::new(
+                op_logs::OpLogs::new(op_file_padding.clone(), op_logs::OpReadMode::FullLine).init(),
+            ),
             op_file_padding,
             op_file_done: workdir.join(PathBuf::from("done.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
@@ -384,7 +386,7 @@ impl Mongobar {
                         continue;
                     }
                     let mut row_index = 0;
-                    while let Some(row) = op_rows.iter(thread_index, row_index) {
+                    while let Some(row) = op_rows.read(row_index) {
                         if signal.get() != 0 {
                             break;
                         }
