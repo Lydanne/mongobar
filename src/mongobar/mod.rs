@@ -279,7 +279,8 @@ impl Mongobar {
             .set(thread_count as usize);
 
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
-        let op_logs = Arc::new(op_logs::OpLogs::new(self.op_file_padding.clone(), mode).init());
+        let op_logs =
+            Arc::new(op_logs::OpLogs::new(self.op_file_padding.clone(), mode.clone()).init());
 
         let mut created_thread_count = 0;
         loop {
@@ -315,6 +316,7 @@ impl Mongobar {
             let query_qps = query_qps.clone();
             let querying = querying.clone();
             let thread_count_num = thread_count;
+            let mode = mode.clone();
 
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
@@ -395,9 +397,18 @@ impl Mongobar {
             if loop_count == 0 {
                 self.indicator.take("progress_total").unwrap().set(0);
             } else {
-                self.indicator.take("progress_total").unwrap().set(
-                    op_logs.len() * loop_count as usize * (thread_count as usize + dyn_threads_num),
-                );
+                if let op_logs::OpReadMode::FullLine(_) = mode {
+                    self.indicator.take("progress_total").unwrap().set(
+                        op_logs.len()
+                            * loop_count as usize
+                            * (thread_count as usize + dyn_threads_num),
+                    );
+                } else {
+                    self.indicator
+                        .take("progress_total")
+                        .unwrap()
+                        .set(op_logs.len());
+                }
             }
         }
 

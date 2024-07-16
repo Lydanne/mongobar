@@ -13,10 +13,9 @@ use super::op_row::{self, OpRow};
 
 static BUFF_SIZE: usize = 3;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum OpReadMode {
     StreamLine,
-    None,
     FullLine(Option<String>),
 }
 
@@ -55,7 +54,6 @@ impl OpLogs {
             OpReadMode::FullLine(filter) => {
                 self.load_full_line(filter.clone());
             }
-            OpReadMode::None => todo!(),
         }
         self
     }
@@ -157,7 +155,6 @@ impl OpLogs {
                     return None;
                 }
             }
-            OpReadMode::None => todo!(),
         }
     }
 }

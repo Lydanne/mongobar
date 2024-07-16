@@ -752,7 +752,12 @@ fn render_progress(f: &mut Frame, area: Rect, app: &App) {
         let gauge = Gauge::default()
             .block(block)
             .gauge_style(ratatui::style::Style::default().fg(ratatui::style::Color::Green))
-            .label(format!("{:.2}%", current_progress * 100.0))
+            .label(format!(
+                "{:.2}% {}/{}",
+                current_progress * 100.0,
+                progress,
+                progress_total
+            ))
             .ratio(current_progress);
         f.render_widget(gauge, area);
     }
