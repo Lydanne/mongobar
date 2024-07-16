@@ -4,6 +4,7 @@ use bson::DateTime;
 use clap::Parser;
 use commands::{Cli, Commands};
 use indicator::print_indicator;
+use mongobar::op_logs;
 use tokio::runtime::Builder;
 
 mod commands;
@@ -42,12 +43,12 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let start = time_range[0];
             let end = time_range[1];
             if op_record.force {
-                mongobar::Mongobar::new(&op_record.target)
+                mongobar::Mongobar::new(&op_record.target, op_logs::OpReadMode::None)
                     .clean()
                     .op_record((start, end))
                     .await?;
             } else {
-                mongobar::Mongobar::new(&op_record.target)
+                mongobar::Mongobar::new(&op_record.target, op_logs::OpReadMode::None)
                     .init()
                     .op_record((start, end))
                     .await?;
@@ -61,10 +62,12 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::OPStress(op_stress) => {
             let indic = indicator::Indicator::new().init(ind_keys());
             print_indicator(&indic);
-            let m = mongobar::Mongobar::new(&op_stress.target)
-                .set_indicator(indic)
-                .set_filter(op_stress.filter)
-                .init();
+            let m = mongobar::Mongobar::new(
+                &op_stress.target,
+                op_logs::OpReadMode::FullLine(op_stress.filter),
+            )
+            .set_indicator(indic)
+            .init();
             println!(
                 "OPStress [{}] Start {} rows.",
                 chrono::Local::now().timestamp(),

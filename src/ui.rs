@@ -31,7 +31,7 @@ use crate::{
     commands::UI,
     ind_keys,
     indicator::{self, Metric},
-    mongobar::Mongobar,
+    mongobar::{op_logs, Mongobar},
 };
 
 use crate::mongobar::op_row;
@@ -299,9 +299,11 @@ fn run_app<B: Backend>(
                             );
                             let target = app.ui.target.clone();
 
-                            let r = Mongobar::new(&target)
-                                .set_filter(app.ui.filter.clone())
-                                .init();
+                            let r = Mongobar::new(
+                                &target,
+                                op_logs::OpReadMode::FullLine(app.ui.filter.clone()),
+                            )
+                            .init();
 
                             app.oplogs = r.op_logs.limit(0, 100).to_vec();
                         }
@@ -360,13 +362,15 @@ fn run_app<B: Backend>(
                                     Builder::new_multi_thread().enable_all().build().unwrap();
                                 let inner_signal = signal.clone();
                                 runtime.block_on(async {
-                                    let r = Mongobar::new(&target)
-                                        .set_signal(signal)
-                                        .set_indicator(indicator)
-                                        .set_filter(filter)
-                                        .init()
-                                        .op_stress()
-                                        .await;
+                                    let r = Mongobar::new(
+                                        &target,
+                                        op_logs::OpReadMode::FullLine(filter),
+                                    )
+                                    .set_signal(signal)
+                                    .set_indicator(indicator)
+                                    .init()
+                                    .op_stress()
+                                    .await;
                                     if let Err(err) = r {
                                         eprintln!("Error: {}", err);
                                     }

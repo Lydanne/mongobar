@@ -39,12 +39,10 @@ pub(crate) struct Mongobar {
 
     pub(crate) indicator: Indicator,
     pub(crate) signal: Arc<crate::signal::Signal>,
-
-    pub(crate) op_filter: Option<Regex>,
 }
 
 impl Mongobar {
-    pub fn new(name: &str) -> Self {
+    pub fn new(name: &str, mode: op_logs::OpReadMode) -> Self {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
         let dir: PathBuf = cur_cwd.join("runtime");
         let workdir: PathBuf = dir.join(name);
@@ -52,9 +50,7 @@ impl Mongobar {
         Self {
             name: name.to_string(),
             op_workdir: workdir.clone(),
-            op_logs: Arc::new(
-                op_logs::OpLogs::new(op_file_padding.clone(), op_logs::OpReadMode::FullLine).init(),
-            ),
+            op_logs: Arc::new(op_logs::OpLogs::new(op_file_padding.clone(), mode).init()),
             op_file_padding,
             op_file_done: workdir.join(PathBuf::from("done.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
@@ -67,8 +63,6 @@ impl Mongobar {
             indicator: Indicator::new(),
 
             signal: Arc::new(crate::signal::Signal::new()),
-
-            op_filter: None,
         }
     }
 
@@ -92,13 +86,6 @@ impl Mongobar {
         return self;
     }
 
-    pub fn set_filter(mut self, filter: Option<String>) -> Self {
-        if let Some(filter) = filter {
-            self.op_filter = Some(Regex::new(&filter).unwrap());
-        }
-        self
-    }
-
     pub fn set_indicator(mut self, indicator: Indicator) -> Self {
         self.indicator = indicator;
         self
@@ -111,7 +98,8 @@ impl Mongobar {
 
     pub fn clean(self) -> Self {
         let _ = fs::remove_dir_all(&self.cwd());
-        Self::new(&self.name).init()
+        let op_logs = Arc::try_unwrap(self.op_logs).unwrap();
+        Self::new(&self.name, op_logs.mode).init()
     }
 
     pub fn load_config(&mut self) {
