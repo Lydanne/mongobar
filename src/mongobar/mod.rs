@@ -224,7 +224,7 @@ impl Mongobar {
 
     pub async fn op_exec(
         &self,
-        loop_count: i32,
+        loop_count: usize,
         mode: op_logs::OpReadMode,
     ) -> Result<(), anyhow::Error> {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
@@ -232,7 +232,7 @@ impl Mongobar {
 
         let thread_count = self.config.thread_count;
 
-        let mongo_uri = self.config.uri.clone();
+        let mongo_uri: String = self.config.uri.clone();
         {
             let options = ClientOptions::parse(&mongo_uri).await.unwrap();
             let client = Client::with_options(options).unwrap();
@@ -332,7 +332,7 @@ impl Mongobar {
                 let mut index = 0 as usize;
 
                 loop {
-                    if loop_count != -1 {
+                    if loop_count != 0 {
                         index += 1;
                         if index > loop_count as usize {
                             break;
@@ -392,7 +392,7 @@ impl Mongobar {
                 done_worker.increment();
             }));
             created_thread_count += 1;
-            if loop_count == -1 {
+            if loop_count == 0 {
                 self.indicator.take("progress_total").unwrap().set(0);
             } else {
                 self.indicator.take("progress_total").unwrap().set(

@@ -10,5 +10,5 @@ pub(crate) struct MongobarConfig {
     #[educe(Default = 10)]
     pub thread_count: u32,
     #[educe(Default = 1000)]
-    pub loop_count: i32,
+    pub loop_count: usize,
 }

@@ -780,7 +780,7 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
             boot_worker, thread_count, dyn_threads
         )),
         Line::from(format!(
-            "> Query : avg_qps({:.2}/s) qps({}/s) cc({}) limit({})",
+            "> Query : avg_qps({:.2}/s) qps({}/s) cc({}<{})",
             (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64,
             app.diff_query_count,
             querying,
