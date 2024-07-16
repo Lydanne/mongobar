@@ -270,6 +270,7 @@ impl Mongobar {
         // let out_size = Arc::new(AtomicUsize::new(0));
         let cost_ms = self.indicator.take("cost_ms").unwrap();
         let progress = self.indicator.take("progress").unwrap();
+        let progress_total = self.indicator.take("progress_total").unwrap();
         let logs = self.indicator.take("logs").unwrap();
         let signal = Arc::clone(&self.signal);
 
@@ -306,6 +307,7 @@ impl Mongobar {
             // let in_size = in_size.clone();
             let query_count = query_count.clone();
             let progress = progress.clone();
+            let progress_total = progress_total.clone();
             let cost_ms = cost_ms.clone();
             let boot_worker = boot_worker.clone();
             let logs = logs.clone();
@@ -331,12 +333,12 @@ impl Mongobar {
                 // );
 
                 // let client = Client::with_uri_str(mongo_uri).await.unwrap();
-                let mut index = 0 as usize;
+                let mut loop_index = 0 as usize;
 
                 loop {
                     if loop_count != 0 {
-                        index += 1;
-                        if index > loop_count as usize {
+                        loop_index += 1;
+                        if loop_index > loop_count as usize {
                             break;
                         }
                     }
@@ -354,8 +356,11 @@ impl Mongobar {
                         if signal.get() != 0 {
                             break;
                         }
-                        querying.increment();
+                        // if progress.get() >= progress_total.get() {
+                        //     break;
+                        // }
                         progress.increment();
+                        querying.increment();
                         match &row.op {
                             op_row::Op::Query => {
                                 let db = client.database(&row.db);

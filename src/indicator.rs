@@ -4,47 +4,50 @@ use std::{
     thread,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Metric {
     number: AtomicUsize,
     logs: Mutex<Vec<String>>,
+    ordering: std::sync::atomic::Ordering,
+}
+
+impl Default for Metric {
+    fn default() -> Self {
+        Self::new(std::sync::atomic::Ordering::Relaxed)
+    }
 }
 
 impl Metric {
-    pub fn new() -> Self {
+    pub fn new(ordering: std::sync::atomic::Ordering) -> Self {
         Self {
             number: AtomicUsize::new(0),
             logs: Mutex::new(Vec::new()),
+            ordering,
         }
     }
 
     pub fn increment(&self) {
-        self.number
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.number.fetch_add(1, self.ordering);
     }
 
     pub fn decrement(&self) {
-        self.number
-            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        self.number.fetch_sub(1, self.ordering);
     }
 
     pub fn set(&self, value: usize) {
-        self.number
-            .store(value, std::sync::atomic::Ordering::Relaxed);
+        self.number.store(value, self.ordering);
     }
 
     pub fn get(&self) -> usize {
-        self.number.load(std::sync::atomic::Ordering::Relaxed)
+        self.number.load(self.ordering)
     }
 
     pub fn add(&self, value: usize) {
-        self.number
-            .fetch_add(value, std::sync::atomic::Ordering::Relaxed);
+        self.number.fetch_add(value, self.ordering);
     }
 
     pub fn sub(&self, value: usize) {
-        self.number
-            .fetch_sub(value, std::sync::atomic::Ordering::Relaxed);
+        self.number.fetch_sub(value, self.ordering);
     }
 
     pub fn push(&self, log: String) {
@@ -76,7 +79,14 @@ impl Indicator {
     pub fn init(mut self, metrics: Vec<String>) -> Self {
         let mut metric = HashMap::new();
         for m in metrics {
+            // if m.contains("progress") {
+            //     metric.insert(
+            //         m.clone(),
+            //         Arc::new(Metric::new(std::sync::atomic::Ordering::SeqCst)),
+            //     );
+            // } else {
             metric.insert(m, Arc::new(Metric::default()));
+            // }
         }
         self.metric = metric;
         self

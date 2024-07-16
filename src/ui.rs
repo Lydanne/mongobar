@@ -90,8 +90,8 @@ impl App {
             signal: Arc::new(crate::signal::Signal::new()),
 
             boot_at: chrono::Local::now().timestamp(), // s
-            current_at: Metric::new(),                 // s
-            stress_start_at: Metric::new(),            // s
+            current_at: Metric::default(),             // s
+            stress_start_at: Metric::default(),        // s
 
             query_count_max: f64::MIN,
             query_count_min: f64::MAX,
@@ -142,9 +142,9 @@ impl App {
         if self.signal.get() != 0 {
             return;
         }
-        let current_at = chrono::Local::now().timestamp() as f64;
-        let stress_start_at = self.stress_start_at.get() as f64;
-        let dur = current_at - stress_start_at;
+        // let current_at = chrono::Local::now().timestamp() as f64;
+        // let stress_start_at = self.stress_start_at.get() as f64;
+        // let dur = current_at - stress_start_at;
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
             if tick_index == 0 {
@@ -476,12 +476,17 @@ fn run_app<B: Backend>(
                                     if let Err(err) = r {
                                         eprintln!("Error: {}", err);
                                     }
+                                    // tokio::time::sleep(Duration::from_secs(1)).await;
                                 });
                                 inner_signal.set(2);
+                                let query_count: usize =
+                                    inner_indicator.take("query_count").unwrap().get();
+                                let progress: usize =
+                                    inner_indicator.take("progress").unwrap().get();
                                 inner_indicator
                                     .take("logs")
                                     .unwrap()
-                                    .push("Done".to_string());
+                                    .push(format!("Run {}/{} op done.", query_count, progress));
                             });
                         }
                         "/Replay/Start/Stop" => {
