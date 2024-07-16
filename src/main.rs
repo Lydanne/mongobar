@@ -43,12 +43,12 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let start = time_range[0];
             let end = time_range[1];
             if op_record.force {
-                mongobar::Mongobar::new(&op_record.target, op_logs::OpReadMode::None)
+                mongobar::Mongobar::new(&op_record.target)
                     .clean()
                     .op_record((start, end))
                     .await?;
             } else {
-                mongobar::Mongobar::new(&op_record.target, op_logs::OpReadMode::None)
+                mongobar::Mongobar::new(&op_record.target)
                     .init()
                     .op_record((start, end))
                     .await?;
@@ -62,18 +62,11 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::OPStress(op_stress) => {
             let indic = indicator::Indicator::new().init(ind_keys());
             print_indicator(&indic);
-            let m = mongobar::Mongobar::new(
-                &op_stress.target,
-                op_logs::OpReadMode::FullLine(op_stress.filter),
-            )
-            .set_indicator(indic)
-            .init();
-            println!(
-                "OPStress [{}] Start {} rows.",
-                chrono::Local::now().timestamp(),
-                m.op_logs.len()
-            );
-            m.op_stress().await?;
+            let m = mongobar::Mongobar::new(&op_stress.target)
+                .set_indicator(indic)
+                .init();
+            println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
+            m.op_stress(op_stress.filter).await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
         Commands::UI(ui) => {

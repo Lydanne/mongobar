@@ -90,12 +90,12 @@ impl OpLogs {
         self.length = self.full_buffer.len();
     }
 
-    pub fn push(&self, row: op_row::OpRow) {
+    pub fn push_line(op_file: PathBuf, row: op_row::OpRow) {
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
             .append(true)
-            .open(&self.op_file)
+            .open(op_file)
             .unwrap();
         let content = serde_json::to_string(&row.clone()).unwrap();
         writeln!(file, "{}", content).unwrap();

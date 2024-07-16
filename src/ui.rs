@@ -299,13 +299,14 @@ fn run_app<B: Backend>(
                             );
                             let target = app.ui.target.clone();
 
-                            let r = Mongobar::new(
-                                &target,
+                            let r = Mongobar::new(&target).init();
+
+                            app.oplogs = op_logs::OpLogs::new(
+                                r.op_file_padding.clone(),
                                 op_logs::OpReadMode::FullLine(app.ui.filter.clone()),
                             )
-                            .init();
-
-                            app.oplogs = r.op_logs.limit(0, 100).to_vec();
+                            .limit(0, 100)
+                            .to_vec();
                         }
                         "/Stress/OpLog/ScrollUP" => {
                             if app.oplog_scroll.0 > 0 {
@@ -362,15 +363,12 @@ fn run_app<B: Backend>(
                                     Builder::new_multi_thread().enable_all().build().unwrap();
                                 let inner_signal = signal.clone();
                                 runtime.block_on(async {
-                                    let r = Mongobar::new(
-                                        &target,
-                                        op_logs::OpReadMode::FullLine(filter),
-                                    )
-                                    .set_signal(signal)
-                                    .set_indicator(indicator)
-                                    .init()
-                                    .op_stress()
-                                    .await;
+                                    let r = Mongobar::new(&target)
+                                        .set_signal(signal)
+                                        .set_indicator(indicator)
+                                        .init()
+                                        .op_stress(filter)
+                                        .await;
                                     if let Err(err) = r {
                                         eprintln!("Error: {}", err);
                                     }

@@ -26,7 +26,6 @@ pub(crate) struct Mongobar {
     pub(crate) name: String,
 
     pub(crate) op_workdir: PathBuf,
-    pub(crate) op_logs: Arc<op_logs::OpLogs>,
     pub(crate) op_file_padding: PathBuf,
     pub(crate) op_file_done: PathBuf,
     pub(crate) op_file_resume: PathBuf,
@@ -42,7 +41,7 @@ pub(crate) struct Mongobar {
 }
 
 impl Mongobar {
-    pub fn new(name: &str, mode: op_logs::OpReadMode) -> Self {
+    pub fn new(name: &str) -> Self {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
         let dir: PathBuf = cur_cwd.join("runtime");
         let workdir: PathBuf = dir.join(name);
@@ -50,7 +49,6 @@ impl Mongobar {
         Self {
             name: name.to_string(),
             op_workdir: workdir.clone(),
-            op_logs: Arc::new(op_logs::OpLogs::new(op_file_padding.clone(), mode).init()),
             op_file_padding,
             op_file_done: workdir.join(PathBuf::from("done.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
@@ -98,8 +96,7 @@ impl Mongobar {
 
     pub fn clean(self) -> Self {
         let _ = fs::remove_dir_all(&self.cwd());
-        let op_logs = Arc::try_unwrap(self.op_logs).unwrap();
-        Self::new(&self.name, op_logs.mode).init()
+        Self::new(&self.name).init()
     }
 
     pub fn load_config(&mut self) {
@@ -158,7 +155,7 @@ impl Mongobar {
             _ => {}
         }
         // println!("{:?}", row);
-        self.op_logs.push(row);
+        op_logs::OpLogs::push_line(self.op_file_padding.clone(), row);
     }
 
     // pub fn load_op_rows(&mut self) {
@@ -225,19 +222,14 @@ impl Mongobar {
         Ok(())
     }
 
-    // 执行录制好的压测文件：
-    // 1. 【程序】读取文件
-    // 2. 【程序】创建 1000 个线程，并预分配好每个线程的操作
-    // 3. 【程序】标记开始时间 毫秒
-    // 4. 【程序】放开所有线程
-    // 5. 【程序】等待所有线程结束
-    // 6. 【程序】标记结束时间 毫秒
-    // 7. 【程序】计算分析
-    pub async fn op_stress(&self) -> Result<(), anyhow::Error> {
+    pub async fn op_exec(
+        &self,
+        loop_count: i32,
+        mode: op_logs::OpReadMode,
+    ) -> Result<(), anyhow::Error> {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
         // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
 
-        let loop_count = self.config.loop_count;
         let thread_count = self.config.thread_count;
 
         let mongo_uri = self.config.uri.clone();
@@ -286,26 +278,8 @@ impl Mongobar {
             .unwrap()
             .set(thread_count as usize);
 
-        // thread::spawn({
-        //     let signal = Arc::clone(&signal);
-        //     let query_count = query_count.clone();
-        //     let query_qps = query_qps.clone();
-        //     move || {
-        //         let mut last_query_count = 0;
-        //         loop {
-        //             std::thread::sleep(std::time::Duration::from_secs(1));
-        //             let cur_query_count = query_count.get();
-        //             let qps = cur_query_count - last_query_count;
-        //             query_qps.set(qps);
-        //             last_query_count = query_count.get();
-        //             if signal.get() != 0 {
-        //                 break;
-        //             }
-        //         }
-        //     }
-        // });
-
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
+        let op_logs = Arc::new(op_logs::OpLogs::new(self.op_file_padding.clone(), mode).init());
 
         let mut created_thread_count = 0;
         loop {
@@ -325,7 +299,7 @@ impl Mongobar {
             // -------------------------------------
             let thread_index = created_thread_count as usize;
             let gate = gate.clone();
-            let op_rows = self.op_logs.clone();
+            let op_rows = op_logs.clone();
 
             // let out_size = out_size.clone();
             // let in_size = in_size.clone();
@@ -422,9 +396,7 @@ impl Mongobar {
                 self.indicator.take("progress_total").unwrap().set(0);
             } else {
                 self.indicator.take("progress_total").unwrap().set(
-                    self.op_logs.len()
-                        * loop_count as usize
-                        * (thread_count as usize + dyn_threads_num),
+                    op_logs.len() * loop_count as usize * (thread_count as usize + dyn_threads_num),
                 );
             }
         }
@@ -452,13 +424,48 @@ impl Mongobar {
         Ok(())
     }
 
+    // 执行录制好的压测文件：
+    // 1. 【程序】读取文件
+    // 2. 【程序】创建 1000 个线程，并预分配好每个线程的操作
+    // 3. 【程序】标记开始时间 毫秒
+    // 4. 【程序】放开所有线程
+    // 5. 【程序】等待所有线程结束
+    // 6. 【程序】标记结束时间 毫秒
+    // 7. 【程序】计算分析
+    pub async fn op_stress(&self, filter: Option<String>) -> Result<(), anyhow::Error> {
+        let loop_count = self.config.loop_count;
+        self.op_exec(loop_count, op_logs::OpReadMode::FullLine(filter))
+            .await?;
+        Ok(())
+    }
+
     // 恢复压测前状态
     // 1. 【程序】读取上面标记的时间
     // 2. 【程序】通过时间拉取所有的 oplog.rs
     // 3. 【程序】反向执行所有的操作
-    // pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
-    //     Ok(())
-    // }
+    ///
+    /// 恢复逻辑：
+    ///   insert => 记录 insert id => 执行删除
+    ///   update => 查询 该 update 的数据 => 执行 update 还原
+    ///   delete => 查询 该 delete 的数据 => 执行 insert
+    pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
+    /// 回放压测文件
+    /// 1. 【程序】读取文件
+    /// 2. 【程序】通过文件生成 恢复操作（首次操作）
+    /// 3. 【程序】执行恢复 op_resume 操作， 这会将这这段时间内地操作还原
+    /// 4. 【程序】执行压测 op_stress 操作，这会将这段时间内地操作再次执行（只执行 1 遍）
+    pub async fn op_replay(&self) -> Result<(), anyhow::Error> {
+        if !self.op_file_resume.exists() {
+            self.op_resume().await?;
+        }
+
+        self.op_exec(1, op_logs::OpReadMode::StreamLine).await?;
+
+        Ok(())
+    }
 }
 
 // fn bytes_to_mb(bytes: usize) -> f64 {
