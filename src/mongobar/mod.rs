@@ -6,7 +6,7 @@ use std::{
 
 use bson::{doc, DateTime};
 
-use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
+use mongodb::{action::Find, bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
 use regex::Regex;
 use tokio::time::Instant;
@@ -432,6 +432,35 @@ impl Mongobar {
                                         e
                                     ));
                                 }
+                            }
+
+                            op_row::Op::GetMore => {
+                                let db = client.database(&row.db);
+                                let start = Instant::now();
+                                let originating_command =
+                                    row.cmd.get_document("originatingCommand");
+                                if let Ok(mut oc) = originating_command.cloned() {
+                                    oc.remove("lsid");
+                                    oc.remove("$clusterTime");
+                                    oc.remove("$db");
+                                    let res = db.run_cursor_command(oc).await;
+                                    if let Err(e) = &res {
+                                        logs.push(format!(
+                                            "OPStress [{}] [{}]\t getMore Error {}",
+                                            chrono::Local::now().timestamp(),
+                                            row.id,
+                                            e
+                                        ));
+                                    }
+                                } else {
+                                    let _ = db
+                                        .collection::<Document>(&row.coll)
+                                        .find(doc! {})
+                                        .limit(row.cmd.get_i64("batchSize").unwrap_or_default());
+                                }
+                                let end = start.elapsed();
+                                cost_ms.add(end.as_millis() as usize);
+                                query_count.increment();
                             }
                             _ => {}
                         }
