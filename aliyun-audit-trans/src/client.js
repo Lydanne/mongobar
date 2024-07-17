@@ -85,14 +85,10 @@ class Client {
       "aggregate": "Aggregate",
       "findAndModify": "FindAndModify",
     }
-    let stats = {
-      Query: 0,
-      Insert: 0,
-      Update: 0,
-      Delete: 0,
-      Count: 0,
-      Aggregate: 0,
-    }
+    let stats = Object.keys(OpMap).reduce((acc, key) => {
+      acc[OpMap[key]] = 0;
+      return acc;
+    }, {})
     data.forEach((item) => {
       // op_row => {"id":"A300CFDE","op":"Query","db":"xgj","coll":"classes","cmd":{"find":"classes","filter":{"_id":{"$in":[{"$oid":"60ee8954fed35014bf22675a"}]}},"projection":{},"$readPreference":{"mode":"secondaryPreferred"}},"ns":"xgj.classes","ts":1720432985163,"st":"None"}
       const Syntax = JSON.parse(item.Syntax);
