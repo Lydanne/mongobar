@@ -171,11 +171,13 @@ pub fn print_indicator(indicator: &Indicator) {
                 //     current_progress
                 // );
                 println!(
-                    "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}%",
+                    "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}% {}/{}",
                     chrono::Local::now().timestamp(),
                     query_count - last_query_count,
                     (cost_ms as f64 / query_count as f64),
-                    current_progress
+                    current_progress,
+                    progress,
+                    progress_total
                 );
                 last_query_count = query_count;
                 // last_in_size = in_size;

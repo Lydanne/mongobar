@@ -20,6 +20,9 @@ pub enum Commands {
     /// stress test OPRecord find operation
     OPStress(OPStress),
 
+    /// stress test OPRecord find operation
+    OPReplay(OPReplay),
+
     /// start a tui.
     UI(UI),
 }
@@ -46,6 +49,12 @@ pub struct OPStress {
     /// regex filter oplog
     #[clap(short, long)]
     pub filter: Option<String>,
+}
+
+#[derive(clap::Parser, Debug)]
+pub struct OPReplay {
+    /// eg: qxg
+    pub target: String,
 }
 
 #[derive(clap::Parser, Debug)]

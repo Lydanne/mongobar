@@ -69,6 +69,16 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             m.op_stress(op_stress.filter).await?;
             println!("OPStress [{}] Done", chrono::Local::now().timestamp());
         }
+        Commands::OPReplay(op_replay) => {
+            let indic = indicator::Indicator::new().init(ind_keys());
+            print_indicator(&indic);
+            let m = mongobar::Mongobar::new(&op_replay.target)
+                .set_indicator(indic)
+                .init();
+            println!("OPReplay [{}] Start.", chrono::Local::now().timestamp());
+            m.op_replay().await?;
+            println!("OPReplay [{}] Done", chrono::Local::now().timestamp());
+        }
         Commands::UI(ui) => {
             let _ = ui::boot(ui);
         }

@@ -62,7 +62,7 @@ impl OpLogs {
         let offset = self.offset.load(std::sync::atomic::Ordering::SeqCst);
         let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
             .iter()
-            .map(|line| serde_json::from_str(&line).unwrap())
+            .map(|line: &String| serde_json::from_str(&line).unwrap())
             .collect();
         let len = buffer.len();
         // let load_index = offset / BUFF_SIZE % 2;
@@ -121,12 +121,13 @@ impl OpLogs {
         match self.mode {
             OpReadMode::StreamLine => {
                 let index = self.index.load(std::sync::atomic::Ordering::SeqCst);
-                self.index
-                    .store(index + 1, std::sync::atomic::Ordering::SeqCst);
+                // println!("row_index: {:?}", index);
+                self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-                if index > self.length {
+                if index >= self.length {
                     return None;
                 }
+
                 let buffer_index = index % BUFF_SIZE;
 
                 let active = index / BUFF_SIZE % 2;
@@ -136,7 +137,7 @@ impl OpLogs {
                 }
 
                 let buffer = self.buffers.get(active).unwrap().read().unwrap();
-                let row = buffer.get(buffer_index);
+                let row: Option<&OpRow> = buffer.get(buffer_index);
                 // println!(
                 //     "index: {:?}",
                 //     (
@@ -146,6 +147,15 @@ impl OpLogs {
                 //         self.offset.load(std::sync::atomic::Ordering::SeqCst)
                 //     )
                 // );
+                // 追加文本
+                // let mut file = OpenOptions::new()
+                //     .create(true)
+                //     .write(true)
+                //     .append(true)
+                //     .open("test.log")
+                //     .unwrap();
+                // writeln!(file, "{} {}", &row.is_none(), buffer.len()).unwrap();
+
                 return row.cloned();
             }
             OpReadMode::FullLine(_) => {
