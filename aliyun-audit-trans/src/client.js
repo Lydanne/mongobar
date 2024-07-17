@@ -138,7 +138,7 @@ class Client {
         if (count === 0) {
           break;
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
         i++;
       }
     } catch (e) {
