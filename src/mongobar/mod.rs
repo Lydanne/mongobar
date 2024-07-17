@@ -324,7 +324,9 @@ impl Mongobar {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
                 boot_worker.increment();
                 if thread_index < thread_count_num as usize {
-                    gate.wait().await;
+                    if loop_count != 1 {
+                        gate.wait().await;
+                    };
                 }
                 // println!(
                 //     "Thread[{}] [{}]\tstart",

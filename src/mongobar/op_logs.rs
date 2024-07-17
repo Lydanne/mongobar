@@ -11,7 +11,7 @@ use regex::Regex;
 
 use super::op_row::{self, OpRow};
 
-static BUFF_SIZE: usize = 10000;
+static BUFF_SIZE: usize = 10;
 
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
@@ -28,7 +28,7 @@ pub struct OpLogs {
     pub op_file: PathBuf,
     pub length: usize,
     pub mode: OpReadMode,
-    pub lock: Mutex<()>,
+    pub lock: Arc<Mutex<()>>,
 }
 
 impl OpLogs {
@@ -43,14 +43,14 @@ impl OpLogs {
             offset: AtomicUsize::new(0),
             index: AtomicUsize::new(0),
             mode,
-            lock: Mutex::new(()),
+            lock: Arc::new(Mutex::new(())),
         }
     }
 
     pub fn init(mut self) -> Self {
         match &self.mode {
             OpReadMode::StreamLine => {
-                // self.load_stream_line(0);
+                self.load_stream_line(0, 0);
                 // self.load_stream_line(1);
             }
             OpReadMode::FullLine(filter) => {
@@ -60,29 +60,31 @@ impl OpLogs {
         self
     }
 
-    pub fn load_stream_line(&self, active: usize) -> usize {
-        // {
-        //     let buffer_wrap = self.buffers.get(active).unwrap().read().unwrap();
-        //     if buffer_wrap.len() > 0 {
-        //         return buffer_wrap.len();
+    pub fn load_stream_line(&self, active: usize, offset: usize) -> usize {
+        // let _guard = self.lock.lock().unwrap();
+        let mut buffer_write = self.buffers.get(active).unwrap().write().unwrap();
+        // if buffer_write.is_err() {
+        //     println!("load_stream_line wait: {}", active);
+        //     std::thread::sleep(std::time::Duration::from_millis(1));
+        //     while self.offset.load(std::sync::atomic::Ordering::SeqCst) == offset {
+        //         std::thread::sleep(std::time::Duration::from_millis(1));
         //     }
+        //     return 1;
         // }
-
-        // println!("load_stream_line lock2 {}", active);
-
-        let offset = self.offset.load(std::sync::atomic::Ordering::SeqCst);
-        let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
-            .iter()
-            .map(|line: &String| serde_json::from_str(&line).unwrap())
-            .collect();
-        let len = buffer.len();
-
-        let mut buffer_write: std::sync::RwLockWriteGuard<Vec<OpRow>> =
-            self.buffers.get(active).unwrap().write().unwrap();
-        *buffer_write = buffer;
+        // let mut buffer_write = buffer_write.unwrap();
+        // println!("load_stream_line active: {}", active);
 
         self.offset
             .store(offset + BUFF_SIZE, std::sync::atomic::Ordering::SeqCst);
+
+        let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
+            .iter()
+            .map(|line: &String| serde_json::from_str(&line).unwrap_or_default())
+            .collect();
+        let len = buffer.len();
+
+        *buffer_write = buffer;
+
         len
     }
 
@@ -149,13 +151,35 @@ impl OpLogs {
                 let buffer_index = index % BUFF_SIZE;
 
                 let active = index / BUFF_SIZE % 2;
-                if buffer_index == 0 {
-                    self.load_stream_line(active);
+
+                let offset: usize = self.offset.load(std::sync::atomic::Ordering::SeqCst);
+
+                if index + BUFF_SIZE / 2 >= offset {
+                    // println!(
+                    //     "[{}] load_stream_line start: index: {} offset: {}",
+                    //     thread_index, index, offset
+                    // );
+
+                    self.load_stream_line((active + 1) % 2, offset);
+
+                    // println!(
+                    //     "[{}] load_stream_line end: index: {} offset: {}",
+                    //     thread_index, index, offset
+                    // );
                 }
 
                 let buffer = self.buffers.get(active).unwrap().read().unwrap();
 
                 let row: Option<&OpRow> = buffer.get(buffer_index);
+
+                // println!(
+                //     "[{}] index: {:?} offset: {:?} active: {:?} {}",
+                //     thread_index,
+                //     index,
+                //     offset,
+                //     active,
+                //     row.is_none()
+                // );
 
                 return row.cloned();
             }
