@@ -11,7 +11,7 @@ use regex::Regex;
 
 use super::op_row::{self, OpRow};
 
-static BUFF_SIZE: usize = 10;
+static BUFF_SIZE: usize = 1000;
 
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
