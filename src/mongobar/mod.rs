@@ -352,7 +352,7 @@ impl Mongobar {
                         continue;
                     }
                     let mut row_index = 0;
-                    while let Some(row) = op_rows.read(row_index) {
+                    while let Some(row) = op_rows.read(thread_index, row_index) {
                         if signal.get() != 0 {
                             break;
                         }

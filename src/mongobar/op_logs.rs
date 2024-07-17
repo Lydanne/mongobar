@@ -4,14 +4,14 @@ use std::path::PathBuf;
 
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::atomic::AtomicUsize;
-use std::sync::RwLock;
+use std::sync::{Arc, Mutex, RwLock};
 
 use ratatui::buffer;
 use regex::Regex;
 
 use super::op_row::{self, OpRow};
 
-static BUFF_SIZE: usize = 3;
+static BUFF_SIZE: usize = 10000;
 
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
@@ -28,6 +28,7 @@ pub struct OpLogs {
     pub op_file: PathBuf,
     pub length: usize,
     pub mode: OpReadMode,
+    pub lock: Mutex<()>,
 }
 
 impl OpLogs {
@@ -42,6 +43,7 @@ impl OpLogs {
             offset: AtomicUsize::new(0),
             index: AtomicUsize::new(0),
             mode,
+            lock: Mutex::new(()),
         }
     }
 
@@ -59,14 +61,26 @@ impl OpLogs {
     }
 
     pub fn load_stream_line(&self, active: usize) -> usize {
+        // {
+        //     let buffer_wrap = self.buffers.get(active).unwrap().read().unwrap();
+        //     if buffer_wrap.len() > 0 {
+        //         return buffer_wrap.len();
+        //     }
+        // }
+
+        // println!("load_stream_line lock2 {}", active);
+
         let offset = self.offset.load(std::sync::atomic::Ordering::SeqCst);
         let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
             .iter()
             .map(|line: &String| serde_json::from_str(&line).unwrap())
             .collect();
         let len = buffer.len();
-        // let load_index = offset / BUFF_SIZE % 2;
-        *self.buffers.get(active).unwrap().write().unwrap() = buffer;
+
+        let mut buffer_write: std::sync::RwLockWriteGuard<Vec<OpRow>> =
+            self.buffers.get(active).unwrap().write().unwrap();
+        *buffer_write = buffer;
+
         self.offset
             .store(offset + BUFF_SIZE, std::sync::atomic::Ordering::SeqCst);
         len
@@ -117,44 +131,31 @@ impl OpLogs {
             .collect();
     }
 
-    pub fn read(&self, row_index: usize) -> Option<op_row::OpRow> {
+    pub fn read(&self, thread_index: usize, row_index: usize) -> Option<op_row::OpRow> {
         match self.mode {
             OpReadMode::StreamLine => {
+                let _guard = self.lock.lock().unwrap();
+
                 let index = self.index.load(std::sync::atomic::Ordering::SeqCst);
-                // println!("row_index: {:?}", index);
-                self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
                 if index >= self.length {
                     return None;
                 }
 
+                // println!("[{}] index: {:?} {}", thread_index, index, self.length);
+
+                self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+
                 let buffer_index = index % BUFF_SIZE;
 
                 let active = index / BUFF_SIZE % 2;
-
                 if buffer_index == 0 {
                     self.load_stream_line(active);
                 }
 
                 let buffer = self.buffers.get(active).unwrap().read().unwrap();
+
                 let row: Option<&OpRow> = buffer.get(buffer_index);
-                // println!(
-                //     "index: {:?}",
-                //     (
-                //         index,
-                //         buffer_index,
-                //         active,
-                //         self.offset.load(std::sync::atomic::Ordering::SeqCst)
-                //     )
-                // );
-                // 追加文本
-                // let mut file = OpenOptions::new()
-                //     .create(true)
-                //     .write(true)
-                //     .append(true)
-                //     .open("test.log")
-                //     .unwrap();
-                // writeln!(file, "{} {}", &row.is_none(), buffer.len()).unwrap();
 
                 return row.cloned();
             }
