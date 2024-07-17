@@ -11,4 +11,6 @@ pub(crate) struct MongobarConfig {
     pub thread_count: u32,
     #[educe(Default = 1000)]
     pub loop_count: usize,
+
+    pub force_build_resume: Option<bool>,
 }

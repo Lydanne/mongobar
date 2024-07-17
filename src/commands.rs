@@ -55,6 +55,10 @@ pub struct OPStress {
 pub struct OPReplay {
     /// eg: qxg
     pub target: String,
+
+    /// 强制重新构建恢复恢复 oplogs
+    #[clap(short, long)]
+    pub force_build_resume: Option<bool>,
 }
 
 #[derive(clap::Parser, Debug)]

@@ -1346,6 +1346,7 @@ dependencies = [
  "clap",
  "console-subscriber",
  "educe",
+ "futures",
  "mongodb",
  "rand",
  "ratatui 0.27.0",

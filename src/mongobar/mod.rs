@@ -4,14 +4,14 @@ use std::{
     sync::Arc,
 };
 
-use bson::{doc, DateTime};
+use bson::{doc, oid::ObjectId, DateTime};
 
 use mongodb::{action::Find, bson::Document, options::ClientOptions, Client, Collection, Cursor};
 
-use regex::Regex;
-use tokio::time::Instant;
-
 use crate::indicator::Indicator;
+use futures::TryStreamExt;
+use op_logs::{OpLogs, OpReadMode};
+use tokio::time::Instant;
 
 mod mongobar_config;
 
@@ -97,6 +97,11 @@ impl Mongobar {
 
     pub fn set_signal(mut self, signal: Arc<crate::signal::Signal>) -> Self {
         self.signal = signal;
+        self
+    }
+
+    pub fn merge_config_force_build_resume(mut self, force_build_resume: Option<bool>) -> Self {
+        self.config.force_build_resume = force_build_resume;
         self
     }
 
@@ -558,6 +563,191 @@ impl Mongobar {
     ///   update => 查询 该 update 的数据 => 执行 update 还原
     ///   delete => 查询 该 delete 的数据 => 执行 insert
     pub async fn op_resume(&self) -> Result<(), anyhow::Error> {
+        let client = Client::with_uri_str(self.config.uri.clone()).await?;
+
+        let op_logs =
+            op_logs::OpLogs::new(self.op_file_padding.clone(), OpReadMode::StreamLine).init();
+
+        while let Some(op_row) = op_logs.read(0, 0) {
+            match op_row.op {
+                op_row::Op::None => (),
+                op_row::Op::GetMore => (),
+                op_row::Op::Aggregate => (),
+                op_row::Op::Find => (),
+                op_row::Op::Count => (),
+                op_row::Op::Insert => {
+                    let _ids = op_row
+                        .cmd
+                        .clone()
+                        .get_array("documents")
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_document().unwrap().get_object_id("_id").unwrap())
+                        .collect::<Vec<ObjectId>>();
+                    let re_row = op_row::OpRow {
+                        id: op_row.id.clone(),
+                        ns: op_row.ns.clone(),
+                        ts: op_row.ts,
+                        op: op_row::Op::Delete,
+                        db: op_row.db.clone(),
+                        coll: op_row.coll.clone(),
+                        cmd: doc! {
+                            "deletes": [
+                                {
+                                    "q": {
+                                        "_id": {
+                                            "$in": _ids
+                                        }
+                                    },
+                                    "limit": 0
+                                }
+                            ],
+                        },
+                    };
+                    OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                }
+                op_row::Op::Update => {
+                    let qs: Vec<Document> = op_row
+                        .cmd
+                        .get_array("updates")
+                        .unwrap()
+                        .iter()
+                        .map(|v| {
+                            let q = v.as_document().unwrap().get_document("q").unwrap();
+                            q.clone()
+                        })
+                        .collect();
+
+                    for q in qs {
+                        let mut res = client
+                            .database(&op_row.db)
+                            .collection::<Document>(&op_row.coll)
+                            .find(q.clone())
+                            .await?;
+
+                        while let Some(doc) = res.try_next().await? {
+                            let doc = doc.clone();
+                            let re_row = op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Update,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: doc! {
+                                    "updates": [
+                                        {
+                                            "q": {
+                                                "_id": doc.get_object_id("_id").unwrap()
+                                            },
+                                            "u": {
+                                                "$set": doc
+                                            },
+                                            "multi": q.get_bool("multi").unwrap_or_default(),
+                                            "upsert": q.get_bool("upsert").unwrap_or_default()
+                                        }
+                                    ],
+                                },
+                            };
+
+                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                        }
+                    }
+                }
+                op_row::Op::Delete => {
+                    let qs: Vec<Document> = op_row
+                        .cmd
+                        .get_array("deletes")
+                        .unwrap()
+                        .iter()
+                        .map(|v| {
+                            let q = v.as_document().unwrap().get_document("q").unwrap();
+                            q.clone()
+                        })
+                        .collect();
+
+                    for q in qs {
+                        let mut res = client
+                            .database(&op_row.db)
+                            .collection::<Document>(&op_row.coll)
+                            .find(q.clone())
+                            .await?;
+
+                        while let Some(doc) = res.try_next().await? {
+                            let doc = doc.clone();
+                            let re_row = op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Insert,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: doc! {
+                                    "documents": [doc]
+                                },
+                            };
+
+                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                        }
+                    }
+                }
+                op_row::Op::FindAndModify => {
+                    // println!("{:?}", op_row);
+
+                    let remove = op_row.cmd.get_bool("remove").unwrap_or_default();
+                    let query = op_row.cmd.get_document("query").unwrap();
+
+                    let mut res = client
+                        .database(&op_row.db)
+                        .collection::<Document>(&op_row.coll)
+                        .find(query.clone())
+                        .await?;
+
+                    while let Some(doc) = res.try_next().await? {
+                        let doc = doc.clone();
+                        let re_row = if remove {
+                            op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Insert,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: doc! {
+                                    "documents": [doc]
+                                },
+                            }
+                        } else {
+                            op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Update,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: doc! {
+                                    "updates": [
+                                        {
+                                            "q": {
+                                                "_id": doc.get_object_id("_id").unwrap()
+                                            },
+                                            "u": {
+                                                "$set": doc
+                                            },
+                                            "multi": false,
+                                            "upsert": false
+                                        }
+                                    ],
+                                },
+                            }
+                        };
+
+                        OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -567,7 +757,8 @@ impl Mongobar {
     /// 3. 【程序】执行恢复 op_resume 操作， 这会将这这段时间内地操作还原
     /// 4. 【程序】执行压测 op_stress 操作，这会将这段时间内地操作再次执行（只执行 1 遍）
     pub async fn op_replay(&self) -> Result<(), anyhow::Error> {
-        if !self.op_file_resume.exists() {
+        if !self.op_file_resume.exists() || self.config.force_build_resume.unwrap_or_default() {
+            let _ = fs::remove_file(&self.op_file_resume);
             self.op_resume().await?;
         }
 
