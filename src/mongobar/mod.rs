@@ -20,6 +20,12 @@ mod op_state;
 pub mod op_logs;
 pub mod op_row;
 
+#[derive(Debug, Clone)]
+pub enum OpRunMode {
+    Readonly,
+    ReadWrite,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct Mongobar {
     pub(crate) dir: PathBuf,
@@ -226,6 +232,7 @@ impl Mongobar {
         &self,
         loop_count: usize,
         mode: op_logs::OpReadMode,
+        op_run_mode: OpRunMode,
     ) -> Result<(), anyhow::Error> {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
         // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
@@ -319,6 +326,7 @@ impl Mongobar {
             let querying = querying.clone();
             let thread_count_num = thread_count;
             let mode = mode.clone();
+            let op_run_mode = op_run_mode.clone();
 
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
@@ -462,6 +470,11 @@ impl Mongobar {
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
                             }
+                            op_row::Op::Update => {
+                                // if let OpRunMode::Readonly = op_run_mode {
+                                //     continue;
+                                // }
+                            }
                             _ => {}
                         }
 
@@ -526,8 +539,12 @@ impl Mongobar {
     // 7. 【程序】计算分析
     pub async fn op_stress(&self, filter: Option<String>) -> Result<(), anyhow::Error> {
         let loop_count = self.config.loop_count;
-        self.op_exec(loop_count, op_logs::OpReadMode::FullLine(filter))
-            .await?;
+        self.op_exec(
+            loop_count,
+            op_logs::OpReadMode::FullLine(filter),
+            OpRunMode::Readonly,
+        )
+        .await?;
         Ok(())
     }
 
@@ -554,7 +571,8 @@ impl Mongobar {
             self.op_resume().await?;
         }
 
-        self.op_exec(1, op_logs::OpReadMode::StreamLine).await?;
+        self.op_exec(1, op_logs::OpReadMode::StreamLine, OpRunMode::ReadWrite)
+            .await?;
 
         Ok(())
     }
