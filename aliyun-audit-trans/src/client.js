@@ -76,14 +76,14 @@ class Client {
     // Console.default.log(Util.default.toJSONString(resp));
     const data = resp.body.Items.SQLRecord;
     const OpMap = {
-      "find": "Query",
+      "find": "Find",
       "update": "Update",
       "count": "Count",
-      "getMore": "Query",
+      "getMore": "GetMore",
       "insert": "Insert",
       "delete": "Delete",
       "aggregate": "Aggregate",
-      "findAndModify": "Update",
+      "findAndModify": "FindAndModify",
     }
     let stats = {
       Query: 0,
@@ -177,7 +177,7 @@ function convertToRFC3339(dateStr) {
 
 function deepTraverseAndConvert(obj) {
   for (const key in obj) {
-    if (typeof obj[key] === 'string') {
+    if (typeof obj[key] === 'string' && obj[key].includes('T')) {
       obj[key] = convertToRFC3339(obj[key]);
     } else if (typeof obj[key] === 'object' && obj[key] !== null) {
       deepTraverseAndConvert(obj[key]);

@@ -134,7 +134,7 @@ impl OpLogs {
     pub fn read(&self, thread_index: usize, row_index: usize) -> Option<op_row::OpRow> {
         match self.mode {
             OpReadMode::StreamLine => {
-                let _guard = self.lock.lock().unwrap();
+                // let _guard = self.lock.lock().unwrap();
 
                 let index = self.index.load(std::sync::atomic::Ordering::SeqCst);
 

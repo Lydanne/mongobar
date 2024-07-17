@@ -20,9 +20,11 @@ pub(crate) enum Op {
     Insert,
     Update,
     Delete,
-    Query,
+    Find,
     Count,
     Aggregate,
+    FindAndModify,
+    GetMore,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]

@@ -143,7 +143,7 @@ impl Mongobar {
                 row.id = doc.get_str("queryHash").unwrap().to_string();
                 row.ns = ns;
                 row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
-                row.op = op_row::Op::Query;
+                row.op = op_row::Op::Find;
                 row.db = command.get_str("$db").unwrap().to_string();
                 row.coll = command.get_str("find").unwrap().to_string();
                 let mut new_cmd = command.clone();
@@ -362,7 +362,7 @@ impl Mongobar {
                         progress.increment();
                         querying.increment();
                         match &row.op {
-                            op_row::Op::Query => {
+                            op_row::Op::Find => {
                                 let db = client.database(&row.db);
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
                                 let start = Instant::now();
