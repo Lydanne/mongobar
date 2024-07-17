@@ -97,10 +97,6 @@ class Client {
         return;
       }
       const cmd = Syntax.args;
-      delete cmd.lsid;
-      delete cmd.$clusterTime;
-      delete cmd.$db;
-      delete cmd.cursor;
       deepTraverseAndConvert(cmd);
       const [db, coll] = Syntax.ns.split('.');
       const op_row = {
@@ -130,12 +126,16 @@ class Client {
     try {
       let i = 1;
       while (true) {
-        const count = await Client.load(i);
-        if (count === 0) {
-          break;
+        try {
+          const count = await Client.load(i);
+          if (count === 0) {
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          i++;
+        } catch (error) {
+          await new Promise(resolve => setTimeout(resolve, 60000));
         }
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        i++;
       }
     } catch (e) {
       Console.default.log(e);
@@ -172,6 +172,13 @@ function convertToRFC3339(dateStr) {
 
 
 function deepTraverseAndConvert(obj) {
+  if (typeof obj === 'object' && obj !== null) {
+    delete obj.lsid;
+    delete obj.$clusterTime;
+    delete obj.$db;
+    delete obj.cursor;
+    delete obj.cursorId;
+  }
   for (const key in obj) {
     if (typeof obj[key] === 'string' && obj[key].includes('T')) {
       obj[key] = convertToRFC3339(obj[key]);

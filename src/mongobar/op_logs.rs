@@ -79,7 +79,7 @@ impl OpLogs {
 
         let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
             .iter()
-            .map(|line: &String| serde_json::from_str(&line).unwrap_or_default())
+            .map(|line: &String| serde_json::from_str(&line).unwrap())
             .collect();
         let len = buffer.len();
 
