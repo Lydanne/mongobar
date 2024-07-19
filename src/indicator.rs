@@ -147,7 +147,7 @@ pub fn print_indicator(indicator: &Indicator) {
                 let boot_worker = boot_worker.get();
                 if boot_worker < thread_count as usize {
                     println!(
-                        "OPStress [{}] wait for boot {}/{}.",
+                        "IND [{}] wait for boot {}/{}.",
                         chrono::Local::now().timestamp(),
                         boot_worker,
                         thread_count
@@ -159,14 +159,14 @@ pub fn print_indicator(indicator: &Indicator) {
                 });
 
                 // println!(
-                //     "OPStress [{}] query_count: {} in_size: {} out_size: {}",
+                //     "IND [{}] query_count: {} in_size: {} out_size: {}",
                 //     chrono::Local::now().timestamp(),
                 //     query_count,
                 //     in_size,
                 //     out_size
                 // );
                 // println!(
-                //     "OPStress [{}] count: {}/s io: ({:.2},{:.2})MB/s cost: {:.2}/ms progress: {:.2}%",
+                //     "IND [{}] count: {}/s io: ({:.2},{:.2})MB/s cost: {:.2}/ms progress: {:.2}%",
                 //     chrono::Local::now().timestamp(),
                 //     query_count - last_query_count,
                 //     bytes_to_mb(in_size - last_in_size),
@@ -175,7 +175,7 @@ pub fn print_indicator(indicator: &Indicator) {
                 //     current_progress
                 // );
                 println!(
-                    "OPStress [{}] count: {}/s cost: {:.2}ms progress: {:.2}% {}/{}",
+                    "IND [{}] count: {}/s cost: {:.2}ms progress: {:.2}% {}/{}",
                     chrono::Local::now().timestamp(),
                     query_count - last_query_count,
                     (cost_ms as f64 / query_count as f64),
