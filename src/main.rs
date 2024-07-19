@@ -83,6 +83,25 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::UI(ui) => {
             let _ = ui::boot(ui);
         }
+        Commands::OPExport(args) => {
+            mongobar::Mongobar::new(&args.target)
+                .init()
+                .op_export()
+                .await?;
+
+            println!(
+                "OPExport done output to `./runtime/{}/data.op`.",
+                args.target
+            );
+        }
+        Commands::OPImport(args) => {
+            mongobar::Mongobar::new(&args.target)
+                .init()
+                .op_import()
+                .await?;
+
+            println!("OPImport done by `./runtime/{}/data.op`.", args.target);
+        }
     }
 
     Ok(())

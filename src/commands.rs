@@ -23,6 +23,12 @@ pub enum Commands {
     /// stress test OPRecord find operation
     OPReplay(OPReplay),
 
+    /// export oplogs to local
+    OPExport(OPReplay),
+
+    /// export oplogs to local
+    OPImport(OPReplay),
+
     /// start a tui.
     UI(UI),
 }

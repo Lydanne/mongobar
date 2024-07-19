@@ -36,9 +36,9 @@ pub(crate) struct Mongobar {
 
     pub(crate) op_workdir: PathBuf,
     pub(crate) op_file_padding: PathBuf,
-    pub(crate) op_file_done: PathBuf,
     pub(crate) op_file_revert: PathBuf,
     pub(crate) op_file_resume: PathBuf,
+    pub(crate) op_file_data: PathBuf,
 
     pub(crate) op_state_file: PathBuf,
     pub(crate) op_state: op_state::OpState,
@@ -60,9 +60,9 @@ impl Mongobar {
             name: name.to_string(),
             op_workdir: workdir.clone(),
             op_file_padding,
-            op_file_done: workdir.join(PathBuf::from("done.op")),
             op_file_revert: workdir.join(PathBuf::from("revert.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
+            op_file_data: workdir.join(PathBuf::from("data.op")),
             config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
             config: mongobar_config::MongobarConfig::default(),
             dir,
@@ -85,7 +85,6 @@ impl Mongobar {
         if !cwd.exists() {
             fs::create_dir_all(&cwd).unwrap();
             fs::write(cwd.clone().join(&self.op_file_padding), "").unwrap();
-            fs::write(cwd.clone().join(&self.op_file_done), "").unwrap();
         }
 
         self.load_config();
@@ -1035,6 +1034,124 @@ impl Mongobar {
             .init()
             .op_exec(
                 self.op_file_resume.clone(),
+                1,
+                1,
+                op_logs::OpReadMode::StreamLine,
+                OpRunMode::ReadWrite,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// 将线上相关的数据拉取到本地文件
+    pub async fn op_export(&self) -> Result<(), anyhow::Error> {
+        let _ = fs::remove_file(&self.op_file_data);
+        let client: Client = Client::with_uri_str(self.config.uri.clone()).await?;
+
+        let op_logs =
+            op_logs::OpLogs::new(self.op_file_padding.clone(), OpReadMode::StreamLine).init();
+
+        while let Some(op_row) = op_logs.read(0, 0) {
+            match op_row.op {
+                op_row::Op::None => (),
+                op_row::Op::GetMore => (),
+                op_row::Op::Aggregate => (),
+                op_row::Op::Find => (),
+                op_row::Op::Count => {}
+                op_row::Op::Insert => {}
+                op_row::Op::Update => {
+                    let cmd = op_row.cmd.clone();
+                    let qs: Vec<Document> = cmd
+                        .get("updates")
+                        .unwrap()
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| {
+                            let q = v.get("q").unwrap();
+                            Document::deserialize(q).unwrap()
+                        })
+                        .collect();
+
+                    for q in qs {
+                        let mut res = client
+                            .database(&op_row.db)
+                            .collection::<Document>(&op_row.coll)
+                            .find(q.clone())
+                            .await?;
+
+                        while let Some(doc) = res.try_next().await? {
+                            let doc = doc.clone();
+                            let re_row = op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Insert,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: json!({
+                                    "documents": [doc]
+                                }),
+                            };
+
+                            OpLogs::push_line(self.op_file_data.clone(), re_row);
+                        }
+                    }
+                }
+                op_row::Op::Delete => {}
+                op_row::Op::FindAndModify => {
+                    // println!("{:?}", op_row);
+
+                    let remove = op_row
+                        .cmd
+                        .get("remove")
+                        .unwrap()
+                        .as_bool()
+                        .unwrap_or_default();
+
+                    if !remove {
+                        // 更新的情况
+                        let query = op_row.cmd.get("query").unwrap();
+                        let query = Document::deserialize(query).unwrap();
+
+                        let mut res = client
+                            .database(&op_row.db)
+                            .collection::<Document>(&op_row.coll)
+                            .find(query.clone())
+                            .await?;
+
+                        while let Some(doc) = res.try_next().await? {
+                            let re_row = op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Insert,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: json!({
+                                    "documents": [doc]
+                                }),
+                            };
+
+                            OpLogs::push_line(self.op_file_data.clone(), re_row);
+                        }
+                    }
+                }
+            }
+        }
+
+        reverse_file(self.op_file_data.to_str().unwrap()).unwrap();
+
+        Ok(())
+    }
+
+    /// 将本地文件导入到连接的数据库
+    pub async fn op_import(&self) -> Result<(), anyhow::Error> {
+        Self::new(&self.name)
+            .init()
+            .op_exec(
+                self.op_file_data.clone(),
                 1,
                 1,
                 op_logs::OpReadMode::StreamLine,
