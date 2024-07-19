@@ -245,8 +245,6 @@ impl Mongobar {
     ) -> Result<(), anyhow::Error> {
         // let record_start_time = DateTime::from_millis(self.op_state.record_start_ts);
         // let record_end_time = DateTime::from_millis(self.op_state.record_end_ts);
-        self.indicator.reset();
-        self.signal.set(0);
 
         let mongo_uri: String = self.config.uri.clone();
         {
@@ -999,19 +997,27 @@ impl Mongobar {
             let _ = fs::remove_file(&self.op_file_resume);
             self.op_resume().await?;
         }
-        self.op_exec(
-            self.op_file_revert.clone(),
-            1,
-            1,
-            op_logs::OpReadMode::StreamLine,
-            OpRunMode::ReadWrite,
-        )
-        .await?;
-        println!(
+        let logs = self.indicator.take("logs").unwrap();
+        logs.push(format!(
             "OPReplay [{}] op_exec {:?}",
             chrono::Local::now().timestamp(),
             self.op_file_revert
-        );
+        ));
+        Self::new(&self.name)
+            .init()
+            .op_exec(
+                self.op_file_revert.clone(),
+                1,
+                1,
+                op_logs::OpReadMode::StreamLine,
+                OpRunMode::ReadWrite,
+            )
+            .await?;
+        logs.push(format!(
+            "OPReplay [{}] op_exec {:?}",
+            chrono::Local::now().timestamp(),
+            self.op_file_padding
+        ));
         self.op_exec(
             self.op_file_padding.clone(),
             self.config.thread_count,
@@ -1020,19 +1026,21 @@ impl Mongobar {
             OpRunMode::ReadWrite,
         )
         .await?;
-        println!(
+        logs.push(format!(
             "OPReplay [{}] op_exec {:?}",
             chrono::Local::now().timestamp(),
             self.op_file_resume
-        );
-        self.op_exec(
-            self.op_file_resume.clone(),
-            1,
-            1,
-            op_logs::OpReadMode::StreamLine,
-            OpRunMode::ReadWrite,
-        )
-        .await?;
+        ));
+        Self::new(&self.name)
+            .init()
+            .op_exec(
+                self.op_file_resume.clone(),
+                1,
+                1,
+                op_logs::OpReadMode::StreamLine,
+                OpRunMode::ReadWrite,
+            )
+            .await?;
 
         Ok(())
     }

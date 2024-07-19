@@ -93,7 +93,11 @@ impl Indicator {
     }
 
     pub fn take(&self, name: &str) -> Option<Arc<Metric>> {
-        self.metric.get(name).map(|m| Arc::clone(m))
+        if let Some(v) = self.metric.get(name).map(|m| Arc::clone(m)) {
+            Some(v)
+        } else {
+            Some(Arc::new(Metric::default()))
+        }
     }
 
     pub fn reset(&self) {
