@@ -172,13 +172,13 @@ function convertToRFC3339(dateStr) {
 
 
 function deepTraverseAndConvert(obj) {
-  if (typeof obj === 'object' && obj !== null) {
-    delete obj.lsid;
-    delete obj.$clusterTime;
-    delete obj.$db;
-    delete obj.cursor;
-    delete obj.cursorId;
-  }
+  // if (typeof obj === 'object' && obj !== null) {
+  //   delete obj.lsid;
+  //   delete obj.$clusterTime;
+  //   delete obj.$db;
+  //   delete obj.cursor;
+  //   delete obj.cursorId;
+  // }
   for (const key in obj) {
     if (typeof obj[key] === 'string' && obj[key].includes('T')) {
       obj[key] = convertToRFC3339(obj[key]);

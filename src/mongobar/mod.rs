@@ -6,7 +6,11 @@ use std::{
 
 use bson::{doc, oid::ObjectId, DateTime};
 
-use mongodb::{action::Find, bson::Document, options::ClientOptions, Client, Collection, Cursor};
+use mongodb::{
+    action::Find, bson::Bson, bson::Document, options::ClientOptions, Client, Collection, Cursor,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 
 use crate::indicator::Indicator;
 use futures::TryStreamExt;
@@ -145,7 +149,7 @@ impl Mongobar {
         // println!("{}", doc_as_json);
         let mut row = op_row::OpRow::default();
         let op = doc.get_str("op").unwrap();
-        let command = doc.get_document("command").unwrap();
+        let cmd = doc.get_document("command").unwrap();
         match op {
             "query" => {
                 if let Err(_) = doc.get_str("queryHash") {
@@ -155,13 +159,10 @@ impl Mongobar {
                 row.ns = ns;
                 row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
                 row.op = op_row::Op::Find;
-                row.db = command.get_str("$db").unwrap().to_string();
-                row.coll = command.get_str("find").unwrap().to_string();
-                let mut new_cmd = command.clone();
-                new_cmd.remove("lsid");
-                new_cmd.remove("$clusterTime");
-                new_cmd.remove("$db");
-                row.cmd = new_cmd
+                row.db = cmd.get_str("$db").unwrap().to_string();
+                row.coll = cmd.get_str("find").unwrap().to_string();
+
+                row.cmd = json!(cmd);
             }
             _ => {}
         }
@@ -380,8 +381,19 @@ impl Mongobar {
                             op_row::Op::Find => {
                                 let db = client.database(&row.db);
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
+                                let mut cmd = row.cmd.clone();
+                                // println!("before cmd {:?}", cmd);
+                                if let Value::Object(ref mut cmd) = cmd {
+                                    cmd.remove("lsid");
+                                    cmd.remove("$clusterTime");
+                                    cmd.remove("$db");
+                                    cmd.remove("cursor");
+                                    cmd.remove("cursorId");
+                                }
+                                // println!("after cmd {:?}", cmd);
+                                let cmd: Document = Document::deserialize(cmd).unwrap();
                                 let start = Instant::now();
-                                let res = db.run_cursor_command(row.cmd.clone()).await;
+                                let res = db.run_cursor_command(cmd).await;
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
@@ -403,9 +415,19 @@ impl Mongobar {
                             }
                             op_row::Op::Count => {
                                 let db = client.database(&row.db);
-                                // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
+                                let mut cmd = row.cmd.clone();
+                                // println!("before cmd {:?}", cmd);
+                                if let Value::Object(ref mut cmd) = cmd {
+                                    cmd.remove("lsid");
+                                    cmd.remove("$clusterTime");
+                                    cmd.remove("$db");
+                                    cmd.remove("cursor");
+                                    cmd.remove("cursorId");
+                                }
+                                // println!("after cmd {:?}", cmd);
+                                let cmd: Document = Document::deserialize(cmd).unwrap();
                                 let start = Instant::now();
-                                let res = db.run_command(row.cmd.clone()).await;
+                                let res = db.run_command(cmd).await;
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
@@ -423,11 +445,12 @@ impl Mongobar {
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
                                 let get_document: Vec<Document> = row
                                     .cmd
-                                    .get_array("pipeline")
+                                    .get("pipeline")
                                     .unwrap()
-                                    .clone()
+                                    .as_array()
+                                    .unwrap()
                                     .iter()
-                                    .map(|v| v.as_document().unwrap().clone())
+                                    .map(|v| Document::deserialize(v).unwrap())
                                     .collect();
                                 let start = Instant::now();
                                 let res = db
@@ -450,12 +473,17 @@ impl Mongobar {
                             op_row::Op::GetMore => {
                                 let db = client.database(&row.db);
                                 let start = Instant::now();
+                                let mut cmd = row.cmd.clone();
                                 let originating_command =
-                                    row.cmd.get_document("originatingCommand");
-                                if let Ok(mut oc) = originating_command.cloned() {
-                                    oc.remove("lsid");
-                                    oc.remove("$clusterTime");
-                                    oc.remove("$db");
+                                    cmd.get_mut("originatingCommand").map(|v| {
+                                        if let Value::Object(ref mut v) = v {
+                                            v.remove("lsid");
+                                            v.remove("$clusterTime");
+                                            v.remove("$db");
+                                        }
+                                        Document::deserialize(v.to_owned()).unwrap()
+                                    });
+                                if let Some(oc) = originating_command {
                                     let res = db.run_cursor_command(oc).await;
                                     if let Err(e) = &res {
                                         logs.push(format!(
@@ -469,7 +497,7 @@ impl Mongobar {
                                     let _ = db
                                         .collection::<Document>(&row.coll)
                                         .find(doc! {})
-                                        .limit(row.cmd.get_i64("batchSize").unwrap_or_default());
+                                        .limit(row.cmd.get("batchSize").unwrap().as_i64().unwrap());
                                 }
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
@@ -576,14 +604,26 @@ impl Mongobar {
                 op_row::Op::Find => (),
                 op_row::Op::Count => (),
                 op_row::Op::Insert => {
-                    let _ids = op_row
-                        .cmd
-                        .clone()
-                        .get_array("documents")
+                    let cmd = op_row.cmd.clone();
+                    let _ids = cmd
+                        .get("documents")
+                        .map(|v| v.as_array().unwrap())
                         .unwrap()
                         .iter()
-                        .map(|v| v.as_document().unwrap().get_object_id("_id").unwrap())
-                        .collect::<Vec<ObjectId>>();
+                        .map(|v| v.get("_id").unwrap())
+                        .collect::<Vec<&Value>>();
+                    let re_cmd = json!({
+                        "deletes": [
+                            {
+                                "q": {
+                                    "_id": {
+                                        "$in": _ids
+                                    }
+                                },
+                                "limit": 0
+                            }
+                        ],
+                    });
                     let re_row = op_row::OpRow {
                         id: op_row.id.clone(),
                         ns: op_row.ns.clone(),
@@ -591,82 +631,23 @@ impl Mongobar {
                         op: op_row::Op::Delete,
                         db: op_row.db.clone(),
                         coll: op_row.coll.clone(),
-                        cmd: doc! {
-                            "deletes": [
-                                {
-                                    "q": {
-                                        "_id": {
-                                            "$in": _ids
-                                        }
-                                    },
-                                    "limit": 0
-                                }
-                            ],
-                        },
+                        cmd: re_cmd,
                     };
                     OpLogs::push_line(self.op_file_resume.clone(), re_row);
                 }
-                op_row::Op::Update => {
-                    let qs: Vec<Document> = op_row
-                        .cmd
-                        .get_array("updates")
-                        .unwrap()
-                        .iter()
-                        .map(|v| {
-                            let q = v.as_document().unwrap().get_document("q").unwrap();
-                            q.clone()
-                        })
-                        .collect();
-
-                    for q in qs {
-                        let mut res = client
-                            .database(&op_row.db)
-                            .collection::<Document>(&op_row.coll)
-                            .find(q.clone())
-                            .await?;
-
-                        while let Some(doc) = res.try_next().await? {
-                            let doc = doc.clone();
-                            let re_row = op_row::OpRow {
-                                id: op_row.id.clone(),
-                                ns: op_row.ns.clone(),
-                                ts: op_row.ts,
-                                op: op_row::Op::Update,
-                                db: op_row.db.clone(),
-                                coll: op_row.coll.clone(),
-                                cmd: doc! {
-                                    "updates": [
-                                        {
-                                            "q": {
-                                                "_id": doc.get_object_id("_id").unwrap()
-                                            },
-                                            "u": {
-                                                "$set": doc
-                                            },
-                                            "multi": q.get_bool("multi").unwrap_or_default(),
-                                            "upsert": q.get_bool("upsert").unwrap_or_default()
-                                        }
-                                    ],
-                                },
-                            };
-
-                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
-                        }
-                    }
-                }
+                op_row::Op::Update => {}
                 op_row::Op::Delete => {
-                    let qs: Vec<Document> = op_row
+                    let qs: Vec<&Value> = op_row
                         .cmd
-                        .get_array("deletes")
+                        .get("deletes")
+                        .map(|v| v.as_array().unwrap())
                         .unwrap()
                         .iter()
-                        .map(|v| {
-                            let q = v.as_document().unwrap().get_document("q").unwrap();
-                            q.clone()
-                        })
+                        .map(|v| v.get("q").unwrap())
                         .collect();
 
                     for q in qs {
+                        let q = Document::deserialize(q).unwrap();
                         let mut res = client
                             .database(&op_row.db)
                             .collection::<Document>(&op_row.coll)
@@ -674,7 +655,10 @@ impl Mongobar {
                             .await?;
 
                         while let Some(doc) = res.try_next().await? {
-                            let doc = doc.clone();
+                            let doc = json!(doc);
+                            let cmd = json!({
+                                "documents": [doc]
+                            });
                             let re_row = op_row::OpRow {
                                 id: op_row.id.clone(),
                                 ns: op_row.ns.clone(),
@@ -682,9 +666,7 @@ impl Mongobar {
                                 op: op_row::Op::Insert,
                                 db: op_row.db.clone(),
                                 coll: op_row.coll.clone(),
-                                cmd: doc! {
-                                    "documents": [doc]
-                                },
+                                cmd,
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -694,8 +676,15 @@ impl Mongobar {
                 op_row::Op::FindAndModify => {
                     // println!("{:?}", op_row);
 
-                    let remove = op_row.cmd.get_bool("remove").unwrap_or_default();
-                    let query = op_row.cmd.get_document("query").unwrap();
+                    let remove = op_row
+                        .cmd
+                        .get("remove")
+                        .unwrap()
+                        .as_bool()
+                        .unwrap_or_default();
+                    let query = op_row.cmd.get("query").unwrap();
+
+                    let query = Document::deserialize(query).unwrap();
 
                     let mut res = client
                         .database(&op_row.db)
@@ -704,7 +693,6 @@ impl Mongobar {
                         .await?;
 
                     while let Some(doc) = res.try_next().await? {
-                        let doc = doc.clone();
                         let re_row = if remove {
                             op_row::OpRow {
                                 id: op_row.id.clone(),
@@ -713,9 +701,9 @@ impl Mongobar {
                                 op: op_row::Op::Insert,
                                 db: op_row.db.clone(),
                                 coll: op_row.coll.clone(),
-                                cmd: doc! {
+                                cmd: json!({
                                     "documents": [doc]
-                                },
+                                }),
                             }
                         } else {
                             op_row::OpRow {
@@ -725,11 +713,11 @@ impl Mongobar {
                                 op: op_row::Op::Update,
                                 db: op_row.db.clone(),
                                 coll: op_row.coll.clone(),
-                                cmd: doc! {
+                                cmd: json!({
                                     "updates": [
                                         {
                                             "q": {
-                                                "_id": doc.get_object_id("_id").unwrap()
+                                                "_id": doc.get("_id")
                                             },
                                             "u": {
                                                 "$set": doc
@@ -738,7 +726,7 @@ impl Mongobar {
                                             "upsert": false
                                         }
                                     ],
-                                },
+                                }),
                             }
                         };
 

@@ -1,6 +1,7 @@
 use mongodb::bson::Document;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub(crate) struct OpRow {
@@ -8,7 +9,7 @@ pub(crate) struct OpRow {
     pub op: Op,
     pub db: String,
     pub coll: String,
-    pub cmd: Document,
+    pub cmd: Value,
     pub ns: String,
     pub ts: i64,
 }
