@@ -74,8 +74,8 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             print_indicator(&indic);
             let m = mongobar::Mongobar::new(&op_replay.target)
                 .set_indicator(indic)
-                .init()
-                .merge_config_force_build_revert(op_replay.force_build_revert);
+                .merge_config_rebuild_ops(op_replay.rebuild_ops)
+                .init();
             println!("OPReplay [{}] Start.", chrono::Local::now().timestamp());
             m.op_replay().await?;
             println!("OPReplay [{}] Done", chrono::Local::now().timestamp());
@@ -96,6 +96,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::OPImport(args) => {
             mongobar::Mongobar::new(&args.target)
+                .merge_config_uri(args.uri)
                 .init()
                 .op_import()
                 .await?;

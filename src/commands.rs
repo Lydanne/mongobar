@@ -27,7 +27,7 @@ pub enum Commands {
     OPExport(OPReplay),
 
     /// export oplogs to local
-    OPImport(OPReplay),
+    OPImport(OPImport),
 
     /// start a tui.
     UI(UI),
@@ -64,7 +64,20 @@ pub struct OPReplay {
 
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
-    pub force_build_revert: Option<bool>,
+    pub rebuild_ops: Option<bool>,
+}
+
+#[derive(clap::Parser, Debug)]
+pub struct OPImport {
+    /// eg: qxg
+    pub target: String,
+
+    /// mongo uri
+    pub uri: String,
+
+    /// 强制重新构建恢复恢复 oplogs
+    #[clap(short, long)]
+    pub rebuild_ops: Option<bool>,
 }
 
 #[derive(clap::Parser, Debug)]

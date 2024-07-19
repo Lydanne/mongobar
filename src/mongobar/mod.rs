@@ -43,7 +43,6 @@ pub(crate) struct Mongobar {
     pub(crate) op_state_file: PathBuf,
     pub(crate) op_state: op_state::OpState,
 
-    pub(crate) config_file: PathBuf,
     pub(crate) config: mongobar_config::MongobarConfig,
 
     pub(crate) indicator: Indicator,
@@ -63,8 +62,9 @@ impl Mongobar {
             op_file_revert: workdir.join(PathBuf::from("revert.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
             op_file_data: workdir.join(PathBuf::from("data.op")),
-            config_file: cur_cwd.join(PathBuf::from("mongobar.json")),
-            config: mongobar_config::MongobarConfig::default(),
+            config: mongobar_config::MongobarConfig::new(
+                cur_cwd.join(PathBuf::from("mongobar.json")),
+            ),
             dir,
 
             op_state_file: workdir.join(PathBuf::from("state.json")),
@@ -87,7 +87,6 @@ impl Mongobar {
             fs::write(cwd.clone().join(&self.op_file_padding), "").unwrap();
         }
 
-        self.load_config();
         self.load_state();
         // self.load_op_rows();
 
@@ -104,27 +103,19 @@ impl Mongobar {
         self
     }
 
-    pub fn merge_config_force_build_revert(mut self, force_build_revert: Option<bool>) -> Self {
-        self.config.force_build_revert = force_build_revert;
+    pub fn merge_config_rebuild_ops(mut self, rebuild_ops: Option<bool>) -> Self {
+        self.config.rebuild_ops = rebuild_ops;
+        self
+    }
+
+    pub fn merge_config_uri(mut self, uri: String) -> Self {
+        self.config.uri = uri;
         self
     }
 
     pub fn clean(self) -> Self {
         let _ = fs::remove_dir_all(&self.cwd());
         Self::new(&self.name).init()
-    }
-
-    pub fn load_config(&mut self) {
-        if !self.config_file.exists() {
-            self.save_config();
-        }
-        let content: String = fs::read_to_string(&self.config_file).unwrap();
-        self.config = serde_json::from_str(&content).unwrap();
-    }
-
-    pub fn save_config(&self) {
-        let content = serde_json::to_string(&self.config).unwrap();
-        fs::write(&self.config_file, content).unwrap();
     }
 
     pub fn load_state(&mut self) {
@@ -990,7 +981,7 @@ impl Mongobar {
     /// 3. 【程序】执行恢复 op_revert 操作， 这会将这这段时间内地操作还原
     /// 4. 【程序】执行压测 op_stress 操作，这会将这段时间内地操作再次执行（只执行 1 遍）
     pub async fn op_replay(&self) -> Result<(), anyhow::Error> {
-        if !self.op_file_revert.exists() || self.config.force_build_revert.unwrap_or_default() {
+        if !self.op_file_revert.exists() || self.config.rebuild_ops.unwrap_or_default() {
             let _ = fs::remove_file(&self.op_file_revert);
             self.op_revert().await?;
             let _ = fs::remove_file(&self.op_file_resume);

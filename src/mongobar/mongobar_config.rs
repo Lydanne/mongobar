@@ -1,3 +1,5 @@
+use std::{fs, path::PathBuf};
+
 use educe::Educe;
 use serde::{Deserialize, Serialize};
 
@@ -12,5 +14,16 @@ pub(crate) struct MongobarConfig {
     #[educe(Default = 1000)]
     pub loop_count: usize,
 
-    pub force_build_revert: Option<bool>,
+    pub rebuild_ops: Option<bool>,
+}
+
+impl MongobarConfig {
+    pub fn new(config_file: PathBuf) -> Self {
+        if !config_file.exists() {
+            let content = serde_json::to_string(&MongobarConfig::default()).unwrap();
+            fs::write(&config_file, content).unwrap();
+        }
+        let content: String = fs::read_to_string(&config_file).unwrap();
+        return serde_json::from_str(&content).unwrap();
+    }
 }
