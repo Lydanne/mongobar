@@ -507,15 +507,12 @@ impl Mongobar {
                                 let documents =
                                     row.cmd.get("documents").unwrap().as_array().unwrap();
 
+                                let start = Instant::now();
                                 for doc in documents.iter() {
                                     let mut doc: Document =
                                         Document::deserialize(doc.clone()).unwrap();
                                     doc.remove("__v");
-                                    let start = Instant::now();
                                     let res = db.collection(&row.coll).insert_one(doc).await;
-                                    let end = start.elapsed();
-                                    cost_ms.add(end.as_millis() as usize);
-                                    query_count.increment();
                                     if let Err(e) = &res {
                                         logs.push(format!(
                                             "OPExec [{}] [{}]\t Insert Err {}",
@@ -525,6 +522,9 @@ impl Mongobar {
                                         ));
                                     }
                                 }
+                                let end = start.elapsed();
+                                cost_ms.add(end.as_millis() as usize);
+                                query_count.increment();
                             }
                             _ => {}
                         }
