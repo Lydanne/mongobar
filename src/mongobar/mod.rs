@@ -1139,16 +1139,14 @@ impl Mongobar {
 
     /// 将本地文件导入到连接的数据库
     pub async fn op_import(&self) -> Result<(), anyhow::Error> {
-        Self::new(&self.name)
-            .init()
-            .op_exec(
-                self.op_file_data.clone(),
-                1,
-                1,
-                op_logs::OpReadMode::StreamLine,
-                OpRunMode::ReadWrite,
-            )
-            .await?;
+        self.op_exec(
+            self.op_file_data.clone(),
+            1,
+            1,
+            op_logs::OpReadMode::StreamLine,
+            OpRunMode::ReadWrite,
+        )
+        .await?;
 
         Ok(())
     }
