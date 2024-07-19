@@ -4,12 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use bson::{doc, oid::ObjectId, DateTime};
+use bson::{doc, DateTime};
 
-use mongodb::{
-    action::Find, bson::Bson, bson::Document, options::ClientOptions, Client, Collection, Cursor,
-};
-use serde::{Deserialize, Serialize};
+use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
+use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::indicator::Indicator;
@@ -635,7 +633,56 @@ impl Mongobar {
                     };
                     OpLogs::push_line(self.op_file_resume.clone(), re_row);
                 }
-                op_row::Op::Update => {}
+                op_row::Op::Update => {
+                    let cmd = op_row.cmd.clone();
+                    let qs: Vec<Document> = cmd
+                        .get("updates")
+                        .unwrap()
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| {
+                            let q = v.get("q").unwrap();
+                            Document::deserialize(q).unwrap()
+                        })
+                        .collect();
+
+                    for q in qs {
+                        let mut res = client
+                            .database(&op_row.db)
+                            .collection::<Document>(&op_row.coll)
+                            .find(q.clone())
+                            .await?;
+
+                        while let Some(doc) = res.try_next().await? {
+                            let doc = doc.clone();
+                            let re_row = op_row::OpRow {
+                                id: op_row.id.clone(),
+                                ns: op_row.ns.clone(),
+                                ts: op_row.ts,
+                                op: op_row::Op::Update,
+                                db: op_row.db.clone(),
+                                coll: op_row.coll.clone(),
+                                cmd: json!({
+                                    "updates": [
+                                        {
+                                            "q": {
+                                                "_id": doc.get_object_id("_id").unwrap()
+                                            },
+                                            "u": {
+                                                "$set": doc
+                                            },
+                                            "multi": q.get_bool("multi").unwrap_or_default(),
+                                            "upsert": q.get_bool("upsert").unwrap_or_default()
+                                        }
+                                    ],
+                                }),
+                            };
+
+                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                        }
+                    }
+                }
                 op_row::Op::Delete => {
                     let qs: Vec<&Value> = op_row
                         .cmd
