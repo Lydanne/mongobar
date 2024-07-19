@@ -95,8 +95,11 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
         Commands::OPImport(args) => {
+            let indic = indicator::Indicator::new().init(ind_keys());
+            print_indicator(&indic);
             mongobar::Mongobar::new(&args.target)
                 .merge_config_uri(args.uri)
+                .set_indicator(indic)
                 .init()
                 .op_import()
                 .await?;
