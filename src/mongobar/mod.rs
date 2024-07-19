@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 
 use crate::indicator::Indicator;
 use futures::TryStreamExt;
-use op_logs::{OpLogs, OpReadMode};
+use op_logs::{reverse_file, OpLogs, OpReadMode};
 use tokio::time::Instant;
 
 mod mongobar_config;
@@ -782,6 +782,8 @@ impl Mongobar {
                 }
             }
         }
+
+        reverse_file(self.op_file_resume.to_str().unwrap()).unwrap();
 
         Ok(())
     }

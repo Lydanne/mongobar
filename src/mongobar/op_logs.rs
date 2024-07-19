@@ -253,3 +253,48 @@ fn read_file_part(file_path: &str, start: usize, length: usize) -> Vec<String> {
 
     return buffer;
 }
+
+/// 翻转文件
+pub fn reverse_file(file_path: &str) -> std::io::Result<()> {
+    let mut reverse = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(file_path.to_string() + ".reverse")
+        .unwrap();
+
+    let file = File::open(file_path)?;
+    let mut reader = BufReader::new(file);
+    let file_size = reader.seek(SeekFrom::End(0))?;
+
+    let mut line = String::new();
+    let mut current_position = file_size;
+
+    while current_position > 0 {
+        current_position -= 1;
+        reader.seek(SeekFrom::Start(current_position))?;
+
+        let mut byte = [0; 1];
+        reader.read_exact(&mut byte)?;
+
+        if byte[0] == b'\n' {
+            if !line.is_empty() {
+                line.push('\n');
+                reverse.write_all(line.as_bytes())?;
+                line.clear();
+            }
+        } else {
+            line.insert(0, byte[0] as char);
+        }
+    }
+
+    if !line.is_empty() {
+        reverse.write_all(line.as_bytes())?;
+    }
+
+    reverse.write(b"\n")?;
+
+    fs::rename(file_path.to_string() + ".reverse", file_path)?;
+
+    Ok(())
+}
