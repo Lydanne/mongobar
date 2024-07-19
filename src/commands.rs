@@ -58,7 +58,7 @@ pub struct OPReplay {
 
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
-    pub force_build_resume: Option<bool>,
+    pub force_build_revert: Option<bool>,
 }
 
 #[derive(clap::Parser, Debug)]

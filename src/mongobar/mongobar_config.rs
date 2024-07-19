@@ -12,5 +12,5 @@ pub(crate) struct MongobarConfig {
     #[educe(Default = 1000)]
     pub loop_count: usize,
 
-    pub force_build_resume: Option<bool>,
+    pub force_build_revert: Option<bool>,
 }
