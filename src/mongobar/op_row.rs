@@ -27,18 +27,3 @@ pub(crate) enum Op {
     FindAndModify,
     GetMore,
 }
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) enum Status {
-    #[default]
-    None,
-    Pending,
-    Success(StatusSuccess),
-    Failed,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub(crate) struct StatusSuccess {
-    pub rts: i64,
-    pub rms: i64,
-}
