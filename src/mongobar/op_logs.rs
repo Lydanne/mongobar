@@ -11,7 +11,7 @@ use regex::Regex;
 
 use super::op_row::{self, OpRow};
 
-static BUFF_SIZE: usize = 1000;
+static BUFF_SIZE: usize = 10000;
 
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
@@ -24,6 +24,7 @@ pub struct OpLogs {
     pub buffers: [RwLock<Vec<op_row::OpRow>>; 2],
     pub full_buffer: Vec<op_row::OpRow>,
     pub offset: AtomicUsize,
+    pub byte_offset: AtomicUsize,
     pub index: AtomicUsize,
     pub op_file: PathBuf,
     pub length: usize,
@@ -41,6 +42,7 @@ impl OpLogs {
             buffers: [RwLock::new(Vec::new()), RwLock::new(Vec::new())],
             full_buffer: Vec::new(),
             offset: AtomicUsize::new(0),
+            byte_offset: AtomicUsize::new(0),
             index: AtomicUsize::new(0),
             mode,
             lock: Arc::new(Mutex::new(())),
@@ -77,11 +79,28 @@ impl OpLogs {
         self.offset
             .store(offset + BUFF_SIZE, std::sync::atomic::Ordering::SeqCst);
 
-        let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), offset, BUFF_SIZE)
-            .iter()
-            .map(|line: &String| serde_json::from_str(&line).unwrap())
-            .collect();
+        let byte_offset = self.byte_offset.load(std::sync::atomic::Ordering::SeqCst);
+        let mut byte_size = 0;
+        let buffer: Vec<OpRow> =
+            read_file_part_pro(self.op_file.to_str().unwrap(), byte_offset, BUFF_SIZE)
+                .iter()
+                .map(|line: &String| {
+                    byte_size += line.len() + 1;
+                    // append file
+                    // let mut file = OpenOptions::new()
+                    //     .create(true)
+                    //     .write(true)
+                    //     .append(true)
+                    //     .open("test.log")
+                    //     .unwrap();
+                    // writeln!(file, "[{}]{}", line.len(), line).unwrap();
+                    serde_json::from_str(&line).unwrap()
+                })
+                .collect();
         let len = buffer.len();
+
+        self.byte_offset
+            .store(byte_size + byte_offset, std::sync::atomic::Ordering::SeqCst);
 
         *buffer_write = buffer;
 
@@ -208,10 +227,24 @@ fn count_lines(file_path: &str) -> usize {
     line_count
 }
 
+fn read_file_part_pro(file_path: &str, offset: usize, length: usize) -> Vec<String> {
+    let file = File::open(file_path).unwrap();
+    let mut reader = BufReader::new(file.try_clone().unwrap());
+    reader.seek(SeekFrom::Start(offset as u64)).unwrap();
+    let mut buffer: Vec<String> = Vec::new();
+    for (i, line) in reader.lines().enumerate() {
+        if i < length {
+            buffer.push(line.unwrap());
+        }
+    }
+
+    return buffer;
+}
+
 fn read_file_part(file_path: &str, start: usize, length: usize) -> Vec<String> {
     let file = File::open(file_path).unwrap();
     let reader = BufReader::new(file.try_clone().unwrap());
-    let mut buffer = Vec::new();
+    let mut buffer: Vec<String> = Vec::new();
     for (i, line) in reader.lines().enumerate() {
         if i >= start && i < start + length {
             buffer.push(line.unwrap());
