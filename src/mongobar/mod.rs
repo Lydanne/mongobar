@@ -253,7 +253,7 @@ impl Mongobar {
         }
 
         // println!(
-        //     "OPStress [{}] loop_count: {} thread_count: {}",
+        //     "OPExec [{}] loop_count: {} thread_count: {}",
         //     chrono::Local::now().timestamp(),
         //     loop_count,
         //     thread_count
@@ -389,7 +389,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPStress [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -423,7 +423,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPStress [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -452,7 +452,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPStress [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}]\t err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -477,7 +477,7 @@ impl Mongobar {
                                     let res = db.run_cursor_command(oc).await;
                                     if let Err(e) = &res {
                                         logs.push(format!(
-                                            "OPStress [{}] [{}]\t getMore Error {}",
+                                            "OPExec [{}] [{}]\t getMore Error {}",
                                             chrono::Local::now().timestamp(),
                                             row.id,
                                             e
