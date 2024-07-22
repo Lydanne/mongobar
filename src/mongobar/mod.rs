@@ -1149,65 +1149,10 @@ impl Mongobar {
                 op_row::Op::None => (),
                 op_row::Op::GetMore => (),
                 op_row::Op::Aggregate => (),
-                op_row::Op::Find => {
-                    // let query = op_row.cmd.get("filter");
-                    // if let Some(query) = query {
-                    //     let query: Document = Document::deserialize(query).unwrap();
-
-                    //     let mut res = client
-                    //         .database(&op_row.db)
-                    //         .collection::<Document>(&op_row.coll)
-                    //         .find(query)
-                    //         .await?;
-
-                    //     while let Some(doc) = res.try_next().await? {
-                    //         let doc = doc.clone();
-                    //         let re_row = op_row::OpRow {
-                    //             id: op_row.id.clone(),
-                    //             ns: op_row.ns.clone(),
-                    //             ts: op_row.ts,
-                    //             op: op_row::Op::Insert,
-                    //             db: op_row.db.clone(),
-                    //             coll: op_row.coll.clone(),
-                    //             cmd: json!({
-                    //                 "documents": [doc]
-                    //             }),
-                    //         };
-
-                    //         OpLogs::push_line(self.op_file_data.clone(), re_row);
-                    //     }
-                    // }
-                }
-                op_row::Op::Count => {
-                    // let query = op_row.cmd.get("query");
-                    // if let Some(query) = query {
-                    //     let query: Document = Document::deserialize(query).unwrap();
-
-                    //     let mut res = client
-                    //         .database(&op_row.db)
-                    //         .collection::<Document>(&op_row.coll)
-                    //         .find(query)
-                    //         .await?;
-
-                    //     while let Some(doc) = res.try_next().await? {
-                    //         let doc = doc.clone();
-                    //         let re_row = op_row::OpRow {
-                    //             id: op_row.id.clone(),
-                    //             ns: op_row.ns.clone(),
-                    //             ts: op_row.ts,
-                    //             op: op_row::Op::Insert,
-                    //             db: op_row.db.clone(),
-                    //             coll: op_row.coll.clone(),
-                    //             cmd: json!({
-                    //                 "documents": [doc]
-                    //             }),
-                    //         };
-
-                    //         OpLogs::push_line(self.op_file_data.clone(), re_row);
-                    //     }
-                    // }
-                }
+                op_row::Op::Find => {}
+                op_row::Op::Count => {}
                 op_row::Op::Insert => {}
+                op_row::Op::Delete => {}
                 op_row::Op::Update => {
                     let cmd = op_row.cmd.clone();
                     let qs: Vec<Document> = cmd
@@ -1247,10 +1192,7 @@ impl Mongobar {
                         }
                     }
                 }
-                op_row::Op::Delete => {}
                 op_row::Op::FindAndModify => {
-                    // println!("{:?}", op_row);
-
                     let remove = op_row
                         .cmd
                         .get("remove")
