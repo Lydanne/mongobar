@@ -493,7 +493,42 @@ impl Mongobar {
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
                             }
-                            op_row::Op::Update => if let OpRunMode::ReadWrite = op_run_mode {},
+                            op_row::Op::Update => {
+                                if let OpRunMode::ReadWrite = op_run_mode {
+                                    let db = client.database(&row.db);
+                                    let updates =
+                                        row.cmd.get("updates").unwrap().as_array().unwrap();
+                                    let start = Instant::now();
+                                    for update in updates.iter() {
+                                        let update = Document::deserialize(update.clone()).unwrap();
+                                        let q = update.get_document("q");
+                                        if let Ok(q) = q {
+                                            let u = update.get_document("u");
+                                            if let Ok(u) = u {
+                                                let multi =
+                                                    update.get_bool("multi").unwrap_or_default();
+                                                let upsert =
+                                                    update.get_bool("upsert").unwrap_or_default();
+                                                let res = db
+                                                    .collection::<Document>(&row.coll)
+                                                    .update_many(q.clone(), u.clone())
+                                                    .await;
+                                                if let Err(e) = &res {
+                                                    logs.push(format!(
+                                                        "OPExec [{}] [{}] Update Err {}",
+                                                        chrono::Local::now().timestamp(),
+                                                        row.id,
+                                                        e
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let end = start.elapsed();
+                                    cost_ms.add(end.as_millis() as usize);
+                                    query_count.increment();
+                                }
+                            }
                             op_row::Op::Insert => {
                                 if let OpRunMode::ReadWrite = op_run_mode {
                                     let db = client.database(&row.db);
@@ -520,8 +555,60 @@ impl Mongobar {
                                     query_count.increment();
                                 }
                             }
-
-                            _ => {}
+                            op_row::Op::Delete => {
+                                if let OpRunMode::ReadWrite = op_run_mode {
+                                    let db = client.database(&row.db);
+                                    let deletes =
+                                        row.cmd.get("deletes").unwrap().as_array().unwrap();
+                                    let start = Instant::now();
+                                    for delete in deletes.iter() {
+                                        let delete = Document::deserialize(delete.clone()).unwrap();
+                                        let q = delete.get_document("q");
+                                        if let Ok(q) = q {
+                                            let limit = delete.get_i64("limit").unwrap_or(0);
+                                            let res = db
+                                                .collection::<Document>(&row.coll)
+                                                .delete_many(q.clone())
+                                                .await;
+                                            if let Err(e) = &res {
+                                                logs.push(format!(
+                                                    "OPExec [{}] [{}] Delete Err {}",
+                                                    chrono::Local::now().timestamp(),
+                                                    row.id,
+                                                    e
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    let end = start.elapsed();
+                                    cost_ms.add(end.as_millis() as usize);
+                                    query_count.increment();
+                                }
+                            }
+                            op_row::Op::FindAndModify => {
+                                if let OpRunMode::ReadWrite = op_run_mode {
+                                    let db = client.database(&row.db);
+                                    let query = row.cmd.get("query").unwrap();
+                                    let query = Document::deserialize(query.clone()).unwrap();
+                                    let start = Instant::now();
+                                    let res = db
+                                        .collection::<Document>(&row.coll)
+                                        .find_one_and_delete(query.clone())
+                                        .await;
+                                    if let Err(e) = &res {
+                                        logs.push(format!(
+                                            "OPExec [{}] [{}] FindAndModify Err {}",
+                                            chrono::Local::now().timestamp(),
+                                            row.id,
+                                            e
+                                        ));
+                                    }
+                                    let end = start.elapsed();
+                                    cost_ms.add(end.as_millis() as usize);
+                                    query_count.increment();
+                                }
+                            }
+                            op_row::Op::None => (),
                         }
 
                         querying.decrement();
