@@ -33,7 +33,7 @@ pub enum Commands {
     UI(UI),
 }
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 pub struct OPRecord {
     /// eg: qxg
     pub target: String,
@@ -47,7 +47,7 @@ pub struct OPRecord {
     pub force: bool,
 }
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 pub struct OPStress {
     /// eg: qxg
     pub target: String,
@@ -65,7 +65,7 @@ pub struct OPStress {
     pub loop_count: Option<usize>,
 }
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 pub struct OPReplay {
     /// eg: qxg
     pub target: String,
@@ -79,7 +79,7 @@ pub struct OPReplay {
     pub uri: Option<String>,
 }
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 pub struct OPImport {
     /// eg: qxg
     pub target: String,

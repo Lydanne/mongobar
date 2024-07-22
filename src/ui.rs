@@ -29,7 +29,7 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
     commands::UI,
-    ind_keys,
+    exec_tokio, ind_keys,
     indicator::{self, Metric},
     mongobar::{op_logs, Mongobar},
 };
@@ -361,11 +361,10 @@ fn run_app<B: Backend>(
                             inner_indicator.reset();
 
                             thread::spawn(move || {
-                                let runtime =
-                                    Builder::new_multi_thread().enable_all().build().unwrap();
                                 let inner_signal = signal.clone();
-                                runtime.block_on(async {
-                                    let r = Mongobar::new(&target)
+
+                                exec_tokio(move || async move {
+                                    Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
                                         .merge_config_loop_count(ui.loop_count.clone())
@@ -373,11 +372,11 @@ fn run_app<B: Backend>(
                                         .merge_config_uri(ui.uri.clone())
                                         .init()
                                         .op_stress(filter)
-                                        .await;
-                                    if let Err(err) = r {
-                                        eprintln!("Error: {}", err);
-                                    }
+                                        .await?;
+
+                                    Ok(())
                                 });
+
                                 inner_signal.set(2);
                                 inner_indicator
                                     .take("logs")
@@ -469,11 +468,10 @@ fn run_app<B: Backend>(
                             inner_indicator.reset();
 
                             thread::spawn(move || {
-                                let runtime =
-                                    Builder::new_multi_thread().enable_all().build().unwrap();
                                 let inner_signal = signal.clone();
-                                runtime.block_on(async {
-                                    let r = Mongobar::new(&target)
+
+                                exec_tokio(move || async move {
+                                    Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
                                         .merge_config_loop_count(ui.loop_count.clone())
@@ -481,12 +479,10 @@ fn run_app<B: Backend>(
                                         .merge_config_uri(ui.uri.clone())
                                         .init()
                                         .op_replay()
-                                        .await;
-                                    if let Err(err) = r {
-                                        eprintln!("Error: {}", err);
-                                    }
-                                    // tokio::time::sleep(Duration::from_secs(1)).await;
+                                        .await?;
+                                    Ok(())
                                 });
+
                                 inner_signal.set(2);
                                 let query_count: usize =
                                     inner_indicator.take("query_count").unwrap().get();
@@ -560,10 +556,8 @@ fn run_app<B: Backend>(
                         }
                         "/Replay/Resume" => {
                             app.router.push(
-                                vec![
-                                    Route::new(RouteType::Push, "Stop", "Stop")
-                                        .with_span(Span::default().fg(Color::Red)),
-                                ],
+                                vec![Route::new(RouteType::Push, "Stop", "Stop")
+                                    .with_span(Span::default().fg(Color::Red))],
                                 0,
                             );
 
@@ -580,11 +574,10 @@ fn run_app<B: Backend>(
                             inner_indicator.reset();
 
                             thread::spawn(move || {
-                                let runtime =
-                                    Builder::new_multi_thread().enable_all().build().unwrap();
                                 let inner_signal = signal.clone();
-                                runtime.block_on(async {
-                                    let r = Mongobar::new(&target)
+
+                                exec_tokio(move || async move {
+                                    Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
                                         .merge_config_loop_count(ui.loop_count.clone())
@@ -592,11 +585,9 @@ fn run_app<B: Backend>(
                                         .merge_config_uri(ui.uri.clone())
                                         .init()
                                         .op_run_resume()
-                                        .await;
-                                    if let Err(err) = r {
-                                        eprintln!("Error: {}", err);
-                                    }
-                                    // tokio::time::sleep(Duration::from_secs(1)).await;
+                                        .await?;
+
+                                    Ok(())
                                 });
                                 inner_signal.set(2);
                                 let query_count: usize =
