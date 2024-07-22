@@ -1103,6 +1103,8 @@ impl Mongobar {
         if !self.op_file_revert.exists() || self.config.rebuild.unwrap_or_default() {
             let _ = fs::remove_file(&self.op_file_revert);
             self.op_revert().await?;
+        }
+        if !self.op_file_resume.exists() || self.config.rebuild.unwrap_or_default() {
             let _ = fs::remove_file(&self.op_file_resume);
             self.op_resume().await?;
         }
