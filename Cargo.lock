@@ -1348,6 +1348,7 @@ dependencies = [
  "educe",
  "futures",
  "mongodb",
+ "num_cpus",
  "rand",
  "ratatui 0.27.0",
  "regex",

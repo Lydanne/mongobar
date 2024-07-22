@@ -4,7 +4,6 @@ use bson::DateTime;
 use clap::Parser;
 use commands::{Cli, Commands};
 use indicator::print_indicator;
-use mongobar::op_logs;
 use tokio::runtime::Builder;
 
 mod commands;
@@ -120,7 +119,16 @@ fn main() {
         }
     }
 
-    let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
+    let runtime = Builder::new_multi_thread()
+        .worker_threads(
+            num_cpus::get()
+                .checked_sub(1)
+                .unwrap_or(num_cpus::get_physical())
+                * 2,
+        )
+        .enable_all()
+        .build()
+        .unwrap();
 
     runtime.block_on(async {
         let r = boot().await;

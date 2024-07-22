@@ -23,6 +23,7 @@ tui-input = "*"
 rand = "*"
 serde_json_path = "0.6.7"
 regex = "1.10.5"
+num_cpus = "1.16.0"
 
 [dependencies.educe]
 version = "*"
