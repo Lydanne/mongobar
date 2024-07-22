@@ -1139,6 +1139,7 @@ impl Mongobar {
 
     /// 将线上相关的数据拉取到本地文件
     pub async fn op_export(&self) -> Result<(), anyhow::Error> {
+        let instant = Instant::now();
         let _ = fs::remove_file(&self.op_file_data);
         let client = Arc::new(Client::with_uri_str(self.config.uri.clone()).await?);
 
@@ -1247,6 +1248,8 @@ impl Mongobar {
         for task in tasks {
             task.await?;
         }
+
+        println!("cost {:?}", instant.elapsed());
 
         // println!("waiting...");
         // reverse_file(self.op_file_data.to_str().unwrap()).unwrap();

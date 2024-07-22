@@ -124,7 +124,7 @@ fn main() {
             num_cpus::get()
                 .checked_sub(1)
                 .unwrap_or(num_cpus::get_physical())
-                * 2,
+                * 4,
         )
         .enable_all()
         .build()
