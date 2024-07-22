@@ -389,7 +389,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPExec [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}] err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -423,7 +423,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPExec [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}] err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -452,7 +452,7 @@ impl Mongobar {
                                 query_count.increment();
                                 if let Err(e) = &res {
                                     logs.push(format!(
-                                        "OPExec [{}] [{}]\t err {}",
+                                        "OPExec [{}] [{}] err {}",
                                         chrono::Local::now().timestamp(),
                                         row.id,
                                         e
@@ -477,7 +477,7 @@ impl Mongobar {
                                     let res = db.run_cursor_command(oc).await;
                                     if let Err(e) = &res {
                                         logs.push(format!(
-                                            "OPExec [{}] [{}]\t getMore Error {}",
+                                            "OPExec [{}] [{}] getMore Error {}",
                                             chrono::Local::now().timestamp(),
                                             row.id,
                                             e
@@ -493,39 +493,34 @@ impl Mongobar {
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
                             }
-                            op_row::Op::Update => {
-                                if let OpRunMode::Readonly = op_run_mode {
-                                    continue;
-                                }
-                            }
+                            op_row::Op::Update => if let OpRunMode::ReadWrite = op_run_mode {},
                             op_row::Op::Insert => {
-                                if let OpRunMode::Readonly = op_run_mode {
-                                    continue;
-                                }
+                                if let OpRunMode::ReadWrite = op_run_mode {
+                                    let db = client.database(&row.db);
+                                    let documents =
+                                        row.cmd.get("documents").unwrap().as_array().unwrap();
 
-                                let db = client.database(&row.db);
-                                let documents =
-                                    row.cmd.get("documents").unwrap().as_array().unwrap();
-
-                                let start = Instant::now();
-                                for doc in documents.iter() {
-                                    let mut doc: Document =
-                                        Document::deserialize(doc.clone()).unwrap();
-                                    doc.remove("__v");
-                                    let res = db.collection(&row.coll).insert_one(doc).await;
-                                    if let Err(e) = &res {
-                                        logs.push(format!(
-                                            "OPExec [{}] [{}]\t Insert Err {}",
-                                            chrono::Local::now().timestamp(),
-                                            row.id,
-                                            e
-                                        ));
+                                    let start = Instant::now();
+                                    for doc in documents.iter() {
+                                        let mut doc: Document =
+                                            Document::deserialize(doc.clone()).unwrap();
+                                        doc.remove("__v");
+                                        let res = db.collection(&row.coll).insert_one(doc).await;
+                                        if let Err(e) = &res {
+                                            logs.push(format!(
+                                                "OPExec [{}] [{}] Insert Err {}",
+                                                chrono::Local::now().timestamp(),
+                                                row.id,
+                                                e
+                                            ));
+                                        }
                                     }
+                                    let end = start.elapsed();
+                                    cost_ms.add(end.as_millis() as usize);
+                                    query_count.increment();
                                 }
-                                let end = start.elapsed();
-                                cost_ms.add(end.as_millis() as usize);
-                                query_count.increment();
                             }
+
                             _ => {}
                         }
 
