@@ -302,7 +302,7 @@ fn run_app<B: Backend>(
                             let r = Mongobar::new(&target).init();
 
                             app.oplogs = op_logs::OpLogs::new(
-                                r.op_file_padding.clone(),
+                                r.op_file_oplogs.clone(),
                                 op_logs::OpReadMode::FullLine(app.ui.filter.clone()),
                             )
                             .limit(0, 100)

@@ -35,7 +35,7 @@ pub(crate) struct Mongobar {
     pub(crate) name: String,
 
     pub(crate) op_workdir: PathBuf,
-    pub(crate) op_file_padding: PathBuf,
+    pub(crate) op_file_oplogs: PathBuf,
     pub(crate) op_file_revert: PathBuf,
     pub(crate) op_file_resume: PathBuf,
     pub(crate) op_file_data: PathBuf,
@@ -52,13 +52,13 @@ pub(crate) struct Mongobar {
 impl Mongobar {
     pub fn new(name: &str) -> Self {
         let cur_cwd: PathBuf = std::env::current_dir().unwrap();
-        let dir: PathBuf = cur_cwd.join("runtime");
+        let dir: PathBuf = cur_cwd.join(".mongobar");
         let workdir: PathBuf = dir.join(name);
-        let op_file_padding = workdir.join(PathBuf::from("padding.op"));
+        let op_file_oplogs = workdir.join(PathBuf::from("oplogs.op"));
         Self {
             name: name.to_string(),
             op_workdir: workdir.clone(),
-            op_file_padding,
+            op_file_oplogs: op_file_oplogs,
             op_file_revert: workdir.join(PathBuf::from("revert.op")),
             op_file_resume: workdir.join(PathBuf::from("resume.op")),
             op_file_data: workdir.join(PathBuf::from("data.op")),
@@ -84,7 +84,7 @@ impl Mongobar {
 
         if !cwd.exists() {
             fs::create_dir_all(&cwd).unwrap();
-            fs::write(cwd.clone().join(&self.op_file_padding), "").unwrap();
+            fs::write(cwd.clone().join(&self.op_file_oplogs), "").unwrap();
         }
 
         self.load_state();
@@ -158,7 +158,7 @@ impl Mongobar {
             _ => {}
         }
         // println!("{:?}", row);
-        op_logs::OpLogs::push_line(self.op_file_padding.clone(), row);
+        op_logs::OpLogs::push_line(self.op_file_oplogs.clone(), row);
     }
 
     // pub fn load_op_rows(&mut self) {
@@ -591,7 +591,7 @@ impl Mongobar {
     pub async fn op_stress(&self, filter: Option<String>) -> Result<(), anyhow::Error> {
         let loop_count = self.config.loop_count;
         self.op_exec(
-            self.op_file_padding.clone(),
+            self.op_file_oplogs.clone(),
             self.config.thread_count,
             loop_count,
             op_logs::OpReadMode::FullLine(filter),
@@ -614,7 +614,7 @@ impl Mongobar {
         let client = Client::with_uri_str(self.config.uri.clone()).await?;
 
         let op_logs =
-            op_logs::OpLogs::new(self.op_file_padding.clone(), OpReadMode::StreamLine).init();
+            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init();
 
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
@@ -816,7 +816,7 @@ impl Mongobar {
         let client: Client = Client::with_uri_str(self.config.uri.clone()).await?;
 
         let op_logs =
-            op_logs::OpLogs::new(self.op_file_padding.clone(), OpReadMode::StreamLine).init();
+            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init();
 
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
@@ -1034,10 +1034,10 @@ impl Mongobar {
         logs.push(format!(
             "OPReplay [{}] op_exec {:?}",
             chrono::Local::now().timestamp(),
-            self.op_file_padding
+            self.op_file_oplogs
         ));
         self.op_exec(
-            self.op_file_padding.clone(),
+            self.op_file_oplogs.clone(),
             self.config.thread_count,
             1,
             op_logs::OpReadMode::StreamLine,
@@ -1069,7 +1069,7 @@ impl Mongobar {
         let client: Client = Client::with_uri_str(self.config.uri.clone()).await?;
 
         let op_logs =
-            op_logs::OpLogs::new(self.op_file_padding.clone(), OpReadMode::StreamLine).init();
+            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init();
 
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
