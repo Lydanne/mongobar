@@ -64,7 +64,7 @@ pub struct OPReplay {
 
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
-    pub rebuild_ops: Option<bool>,
+    pub rebuild: Option<bool>,
 }
 
 #[derive(clap::Parser, Debug)]
@@ -77,7 +77,7 @@ pub struct OPImport {
 
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
-    pub rebuild_ops: Option<bool>,
+    pub rebuild: Option<bool>,
 }
 
 #[derive(clap::Parser, Debug)]
