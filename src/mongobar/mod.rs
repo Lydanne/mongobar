@@ -1099,11 +1099,9 @@ impl Mongobar {
             self.op_resume().await?;
         }
         let logs = self.indicator.take("logs").unwrap();
-        logs.push(format!(
-            "OPReplay [{}] op_exec {:?}",
-            chrono::Local::now().timestamp(),
-            self.op_file_revert
-        ));
+        logs.push(format!("OPReplay op_exec revert.op running...",));
+        logs.push(format!("OPReplay op_exec oplogs.op waiting...",));
+        logs.push(format!("OPReplay op_exec resume.op waiting...",));
         self.fork(Indicator::new())
             .op_exec(
                 self.op_file_revert.clone(),
@@ -1113,11 +1111,8 @@ impl Mongobar {
                 OpRunMode::ReadWrite,
             )
             .await?;
-        logs.push(format!(
-            "OPReplay [{}] op_exec {:?}",
-            chrono::Local::now().timestamp(),
-            self.op_file_oplogs
-        ));
+        logs.update(0, format!("OPReplay op_exec revert.op done"));
+        logs.update(1, format!("OPReplay op_exec oplogs.op running..."));
         self.op_exec(
             self.op_file_oplogs.clone(),
             self.config.thread_count,
@@ -1126,11 +1121,8 @@ impl Mongobar {
             OpRunMode::ReadWrite,
         )
         .await?;
-        logs.push(format!(
-            "OPReplay [{}] op_exec {:?}",
-            chrono::Local::now().timestamp(),
-            self.op_file_resume
-        ));
+        logs.update(1, format!("OPReplay op_exec oplogs.op done"));
+        logs.update(2, format!("OPReplay op_exec resume.op running..."));
         self.fork(Indicator::new())
             .op_exec(
                 self.op_file_resume.clone(),
@@ -1140,7 +1132,7 @@ impl Mongobar {
                 OpRunMode::ReadWrite,
             )
             .await?;
-
+        logs.update(2, format!("OPReplay op_exec resume.op done"));
         Ok(())
     }
 

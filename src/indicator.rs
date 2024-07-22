@@ -54,6 +54,15 @@ impl Metric {
         self.logs.lock().unwrap().push(log);
     }
 
+    pub fn update(&self, index: usize, new_log: String) {
+        let mut logs = self.logs.lock().unwrap();
+        if let Some(log) = logs.get_mut(index) {
+            *log = new_log;
+        } else {
+            logs.push(new_log);
+        }
+    }
+
     pub fn consumers(&self) -> Vec<String> {
         // 取出所有的日志，并且清空
         self.logs.lock().unwrap().drain(..).collect()
