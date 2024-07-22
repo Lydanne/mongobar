@@ -1100,7 +1100,7 @@ impl Mongobar {
     /// 3. 【程序】执行恢复 op_revert 操作， 这会将这这段时间内地操作还原
     /// 4. 【程序】执行压测 op_stress 操作，这会将这段时间内地操作再次执行（只执行 1 遍）
     pub async fn op_replay(&self) -> Result<(), anyhow::Error> {
-        if !self.op_file_revert.exists() || self.config.rebuild.unwrap_or_default() {
+        if !self.op_file_revert.exists() {
             let _ = fs::remove_file(&self.op_file_revert);
             self.op_revert().await?;
         }
