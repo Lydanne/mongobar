@@ -1248,8 +1248,8 @@ impl Mongobar {
             task.await?;
         }
 
-        println!("waiting...");
-        reverse_file(self.op_file_data.to_str().unwrap()).unwrap();
+        // println!("waiting...");
+        // reverse_file(self.op_file_data.to_str().unwrap()).unwrap();
 
         Ok(())
     }
