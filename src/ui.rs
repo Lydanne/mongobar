@@ -281,6 +281,7 @@ fn run_app<B: Backend>(
                             app.router.push(
                                 vec![
                                     Route::new(RouteType::Push, "Start", "Start"),
+                                    Route::new(RouteType::Push, "Resume", "Resume"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
                                 0,
@@ -557,6 +558,61 @@ fn run_app<B: Backend>(
                             app.show_popup = false;
                             app.router.pop();
                         }
+                        "/Replay/Resume" => {
+                            app.router.push(
+                                vec![
+                                    Route::new(RouteType::Push, "Stop", "Stop")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
+                                0,
+                            );
+
+                            app.update_stress_start_at();
+                            app.reset();
+
+                            let target = app.ui.target.clone();
+                            let filter = app.ui.filter.clone();
+                            let indicator = app.indicator.clone();
+                            let inner_indicator = app.indicator.clone();
+                            let signal = app.signal.clone();
+                            let ui = app.ui.clone();
+
+                            inner_indicator.reset();
+
+                            thread::spawn(move || {
+                                let runtime =
+                                    Builder::new_multi_thread().enable_all().build().unwrap();
+                                let inner_signal = signal.clone();
+                                runtime.block_on(async {
+                                    let r = Mongobar::new(&target)
+                                        .set_signal(signal)
+                                        .set_indicator(indicator)
+                                        .merge_config_loop_count(ui.loop_count.clone())
+                                        .merge_config_rebuild(ui.rebuild.clone())
+                                        .merge_config_uri(ui.uri.clone())
+                                        .init()
+                                        .op_run_resume()
+                                        .await;
+                                    if let Err(err) = r {
+                                        eprintln!("Error: {}", err);
+                                    }
+                                    // tokio::time::sleep(Duration::from_secs(1)).await;
+                                });
+                                inner_signal.set(2);
+                                let query_count: usize =
+                                    inner_indicator.take("query_count").unwrap().get();
+                                let progress: usize =
+                                    inner_indicator.take("progress").unwrap().get();
+                                inner_indicator
+                                    .take("logs")
+                                    .unwrap()
+                                    .push(format!("Run {}/{} op done.", query_count, progress));
+                            });
+                        }
+                        "/Replay/Resume/Stop" => {
+                            app.signal.set(1);
+                            app.router.pop();
+                        }
                         "/Quit" => {
                             return Ok(());
                         }
@@ -596,6 +652,9 @@ fn ui(frame: &mut Frame, app: &App) {
     } else if cp.starts_with("/Stress") {
         render_stress_start_view(frame, area, app);
     } else if cp.starts_with("/Replay/Start") {
+        app.update_current_at();
+        render_stress_view(frame, area, app);
+    } else if cp.starts_with("/Replay/Resume") {
         app.update_current_at();
         render_stress_view(frame, area, app);
     } else if cp.starts_with("/Replay/OpLog") {
