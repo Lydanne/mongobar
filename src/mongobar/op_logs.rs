@@ -256,6 +256,16 @@ fn read_file_part(file_path: &str, start: usize, length: usize) -> Vec<String> {
 
 /// 翻转文件
 pub fn reverse_file(file_path: &str) -> std::io::Result<()> {
+    if !PathBuf::from(file_path).exists() {
+        let _ = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(file_path.to_string())
+            .unwrap();
+        return Ok(());
+    }
+
     let mut reverse = OpenOptions::new()
         .create(true)
         .write(true)
