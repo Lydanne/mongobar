@@ -15,7 +15,7 @@ use serde_json::{json, Value};
 use crate::indicator::Indicator;
 use futures::TryStreamExt;
 use op_logs::{reverse_file, OpLogs, OpReadMode};
-use tokio::time::Instant;
+use tokio::{fs::OpenOptions, io::AsyncWriteExt, time::Instant};
 
 mod mongobar_config;
 
@@ -1154,10 +1154,21 @@ impl Mongobar {
             op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init(),
         );
         let mut tasks = vec![];
+
+        let op_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(self.op_file_data.clone())
+            .await
+            .unwrap();
+
+        let op_file = Arc::new(tokio::sync::Mutex::new(op_file));
+
         for _ in 0..1000 {
             let client = Arc::clone(&client);
             let op_logs = Arc::clone(&op_logs);
-            let op_file_data = self.op_file_data.clone();
+            let op_file = Arc::clone(&op_file);
+            // let op_file_data = self.op_file_data.clone();
             let task = tokio::spawn(async move {
                 while let Some(op_row) = op_logs.read(0, 0) {
                     match op_row.op {
@@ -1203,7 +1214,19 @@ impl Mongobar {
                                             }),
                                         };
 
-                                        OpLogs::push_line(op_file_data.clone(), re_row);
+                                        // OpLogs::push_line(op_file_data.clone(), re_row);
+                                        let mut op_file = op_file.lock().await;
+
+                                        op_file
+                                            .write_all(
+                                                format!(
+                                                    "{}\n",
+                                                    serde_json::to_string(&re_row).unwrap()
+                                                )
+                                                .as_bytes(),
+                                            )
+                                            .await
+                                            .unwrap();
                                     }
                                 }
                             }
@@ -1241,7 +1264,18 @@ impl Mongobar {
                                             }),
                                         };
 
-                                        OpLogs::push_line(op_file_data.clone(), re_row);
+                                        // OpLogs::push_line(op_file_data.clone(), re_row);
+                                        let mut op_file = op_file.lock().await;
+                                        op_file
+                                            .write_all(
+                                                format!(
+                                                    "{}\n",
+                                                    serde_json::to_string(&re_row).unwrap()
+                                                )
+                                                .as_bytes(),
+                                            )
+                                            .await
+                                            .unwrap();
                                     }
                                 }
                             }
