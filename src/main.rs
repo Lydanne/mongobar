@@ -64,6 +64,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             print_indicator(&indic);
             let m = mongobar::Mongobar::new(&op_stress.target)
                 .set_indicator(indic)
+                .merge_config_uri(op_stress.uri)
                 .init();
             println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
             m.op_stress(op_stress.filter).await?;
@@ -75,6 +76,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let m = mongobar::Mongobar::new(&op_replay.target)
                 .set_indicator(indic)
                 .merge_config_rebuild_ops(op_replay.rebuild)
+                .merge_config_uri(op_replay.uri)
                 .init();
             println!("OPReplay [{}] Start.", chrono::Local::now().timestamp());
             m.op_replay().await?;
@@ -98,7 +100,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let indic = indicator::Indicator::new().init(ind_keys());
             print_indicator(&indic);
             mongobar::Mongobar::new(&args.target)
-                .merge_config_uri(args.uri)
+                .merge_config_uri(Some(args.uri))
                 .set_indicator(indic)
                 .init()
                 .op_import()

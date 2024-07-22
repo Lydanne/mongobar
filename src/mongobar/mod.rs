@@ -108,8 +108,10 @@ impl Mongobar {
         self
     }
 
-    pub fn merge_config_uri(mut self, uri: String) -> Self {
-        self.config.uri = uri;
+    pub fn merge_config_uri(mut self, uri: Option<String>) -> Self {
+        if let Some(uri) = uri {
+            self.config.uri = uri;
+        }
         self
     }
 

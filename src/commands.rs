@@ -55,6 +55,10 @@ pub struct OPStress {
     /// regex filter oplog
     #[clap(short, long)]
     pub filter: Option<String>,
+
+    ///覆盖配置的 uri
+    #[clap(short, long)]
+    pub uri: Option<String>,
 }
 
 #[derive(clap::Parser, Debug)]
@@ -65,6 +69,10 @@ pub struct OPReplay {
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
     pub rebuild: Option<bool>,
+
+    ///覆盖配置的 uri
+    #[clap(short, long)]
+    pub uri: Option<String>,
 }
 
 #[derive(clap::Parser, Debug)]
