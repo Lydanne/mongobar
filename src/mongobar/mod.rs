@@ -103,8 +103,8 @@ impl Mongobar {
         self
     }
 
-    pub fn merge_config_rebuild_ops(mut self, rebuild_ops: Option<bool>) -> Self {
-        self.config.rebuild = rebuild_ops;
+    pub fn merge_config_rebuild(mut self, rebuild: Option<bool>) -> Self {
+        self.config.rebuild = rebuild;
         self
     }
 
@@ -284,7 +284,6 @@ impl Mongobar {
             .take("thread_count")
             .unwrap()
             .set(thread_count as usize);
-
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
         let op_logs = Arc::new(op_logs::OpLogs::new(exec_file, mode.clone()).init());
 
@@ -1105,8 +1104,7 @@ impl Mongobar {
             chrono::Local::now().timestamp(),
             self.op_file_revert
         ));
-        Self::new(&self.name)
-            .init()
+        self.fork(Indicator::new())
             .op_exec(
                 self.op_file_revert.clone(),
                 1,
@@ -1133,8 +1131,7 @@ impl Mongobar {
             chrono::Local::now().timestamp(),
             self.op_file_resume
         ));
-        Self::new(&self.name)
-            .init()
+        self.fork(Indicator::new())
             .op_exec(
                 self.op_file_resume.clone(),
                 1,
@@ -1317,6 +1314,10 @@ impl Mongobar {
         .await?;
 
         Ok(())
+    }
+
+    fn fork(&self, indic: Indicator) -> Self {
+        self.clone().set_indicator(indic).init()
     }
 }
 
