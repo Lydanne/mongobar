@@ -138,7 +138,7 @@ fn main() {
         }
     }
 
-    boot();
+    boot().unwrap();
 }
 
 pub fn exec_tokio<F, Fut>(cb: F)

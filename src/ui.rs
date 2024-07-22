@@ -344,6 +344,8 @@ fn run_app<B: Backend>(
                                     Route::new(RouteType::Push, "CCLimit", "CCLimit"),
                                     Route::new(RouteType::Push, "Stop", "Stop")
                                         .with_span(Span::default().fg(Color::Red)),
+                                    Route::new(RouteType::Push, "Back", "Back")
+                                        .with_span(Span::default().fg(Color::Red)),
                                 ],
                                 0,
                             );
@@ -384,9 +386,16 @@ fn run_app<B: Backend>(
                                     .push("Done".to_string());
                             });
                         }
+                        "/Stress/Start/Back" => {
+                            if app.signal.get() == 2 {
+                                app.router.pop();
+                            } else {
+                                app.signal.set(1);
+                                app.router.pop();
+                            }
+                        }
                         "/Stress/Start/Stop" => {
                             app.signal.set(1);
-                            app.router.pop();
                         }
                         "/Stress/Start/Boost+" => {
                             app.show_popup = true;
@@ -451,6 +460,8 @@ fn run_app<B: Backend>(
                                     Route::new(RouteType::Push, "CCLimit", "CCLimit"),
                                     Route::new(RouteType::Push, "Stop", "Stop")
                                         .with_span(Span::default().fg(Color::Red)),
+                                    Route::new(RouteType::Push, "Back", "Back")
+                                        .with_span(Span::default().fg(Color::Red)),
                                 ],
                                 0,
                             );
@@ -494,9 +505,16 @@ fn run_app<B: Backend>(
                                     .push(format!("Run {}/{} op done.", query_count, progress));
                             });
                         }
+                        "/Replay/Start/Back" => {
+                            if app.signal.get() == 2 {
+                                app.router.pop();
+                            } else {
+                                app.signal.set(1);
+                                app.router.pop();
+                            }
+                        }
                         "/Replay/Start/Stop" => {
                             app.signal.set(1);
-                            app.router.pop();
                         }
                         "/Replay/Start/Boost+" => {
                             app.show_popup = true;
@@ -556,8 +574,12 @@ fn run_app<B: Backend>(
                         }
                         "/Replay/Resume" => {
                             app.router.push(
-                                vec![Route::new(RouteType::Push, "Stop", "Stop")
-                                    .with_span(Span::default().fg(Color::Red))],
+                                vec![
+                                    Route::new(RouteType::Push, "Stop", "Stop")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                    Route::new(RouteType::Push, "Back", "Back")
+                                        .with_span(Span::default().fg(Color::Red)),
+                                ],
                                 0,
                             );
 
