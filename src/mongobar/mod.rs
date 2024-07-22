@@ -116,6 +116,13 @@ impl Mongobar {
         self
     }
 
+    pub fn merge_config_loop_count(mut self, loop_count: Option<usize>) -> Self {
+        if let Some(loop_count) = loop_count {
+            self.config.loop_count = loop_count;
+        }
+        self
+    }
+
     pub fn clean(self) -> Self {
         let _ = fs::remove_dir_all(&self.cwd());
         Self::new(&self.name).init()

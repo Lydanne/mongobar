@@ -131,7 +131,7 @@ impl OpLogs {
             .open(op_file)
             .unwrap();
         let content = serde_json::to_string(&row.clone()).unwrap();
-        write!(file, "{}\n", content).unwrap();
+        writeln!(file, "{}", content).unwrap();
     }
 
     pub fn len(&self) -> usize {

@@ -355,6 +355,7 @@ fn run_app<B: Backend>(
                             let indicator = app.indicator.clone();
                             let inner_indicator = app.indicator.clone();
                             let signal = app.signal.clone();
+                            let ui = app.ui.clone();
 
                             inner_indicator.reset();
 
@@ -366,6 +367,9 @@ fn run_app<B: Backend>(
                                     let r = Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .merge_config_loop_count(ui.loop_count.clone())
+                                        .merge_config_rebuild(ui.rebuild.clone())
+                                        .merge_config_uri(ui.uri.clone())
                                         .init()
                                         .op_stress(filter)
                                         .await;
@@ -459,6 +463,7 @@ fn run_app<B: Backend>(
                             let indicator = app.indicator.clone();
                             let inner_indicator = app.indicator.clone();
                             let signal = app.signal.clone();
+                            let ui = app.ui.clone();
 
                             inner_indicator.reset();
 
@@ -470,6 +475,9 @@ fn run_app<B: Backend>(
                                     let r = Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .merge_config_loop_count(ui.loop_count.clone())
+                                        .merge_config_rebuild(ui.rebuild.clone())
+                                        .merge_config_uri(ui.uri.clone())
                                         .init()
                                         .op_replay()
                                         .await;

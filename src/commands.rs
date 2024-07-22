@@ -59,6 +59,10 @@ pub struct OPStress {
     ///覆盖配置的 uri
     #[clap(short, long)]
     pub uri: Option<String>,
+
+    /// 循环次数
+    #[clap(short, long)]
+    pub loop_count: Option<usize>,
 }
 
 #[derive(clap::Parser, Debug)]
@@ -88,7 +92,7 @@ pub struct OPImport {
     pub rebuild: Option<bool>,
 }
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 pub struct UI {
     /// eg: qxg
     pub target: String,
@@ -96,4 +100,16 @@ pub struct UI {
     /// regex filter oplog
     #[clap(short, long)]
     pub filter: Option<String>,
+
+    /// 强制重新构建恢复恢复 oplogs
+    #[clap(short, long)]
+    pub rebuild: Option<bool>,
+
+    ///覆盖配置的 uri
+    #[clap(short, long)]
+    pub uri: Option<String>,
+
+    /// 循环次数
+    #[clap(short, long)]
+    pub loop_count: Option<usize>,
 }

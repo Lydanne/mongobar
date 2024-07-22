@@ -64,6 +64,7 @@ async fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let m = mongobar::Mongobar::new(&op_stress.target)
                 .set_indicator(indic)
                 .merge_config_uri(op_stress.uri)
+                .merge_config_loop_count(op_stress.loop_count)
                 .init();
             println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
             m.op_stress(op_stress.filter).await?;
