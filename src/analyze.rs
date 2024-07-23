@@ -186,6 +186,7 @@ static IGNORE_KEYS: Lazy<HashSet<&str>> = Lazy::new(|| {
         "replRole",
         "repRole",
         "stateStr",
+        "mode",
     ])
 });
 
