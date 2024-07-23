@@ -160,8 +160,8 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
         wtr.write_record(&[
             k,
             &v.count.to_string(),
-            &v.latency.to_string(),
-            &v.eg.join("\n").replace(",", "，"),
+            &((v.latency as f64) / (v.count as f64)).to_string(),
+            &v.eg.join("\n").replace(",", "，").replace("\"", "'"),
         ])?;
     }
 
