@@ -9,3 +9,5 @@ runtime
 mongobar.json
 .env
 tmp
+mongobar copy.json
+result.csv

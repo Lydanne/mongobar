@@ -29,6 +29,9 @@ pub enum Commands {
     /// export oplogs to local
     OPImport(OPImport),
 
+    /// export oplogs to local
+    Ana(Analyzer),
+
     /// start a tui.
     UI(UI),
 }
@@ -94,6 +97,28 @@ pub struct OPImport {
 
 #[derive(clap::Parser, Debug, Clone)]
 pub struct UI {
+    /// eg: qxg
+    pub target: String,
+
+    /// regex filter oplog
+    #[clap(short, long)]
+    pub filter: Option<String>,
+
+    /// 强制重新构建恢复恢复 oplogs
+    #[clap(short, long)]
+    pub rebuild: Option<bool>,
+
+    ///覆盖配置的 uri
+    #[clap(short, long)]
+    pub uri: Option<String>,
+
+    /// 循环次数
+    #[clap(short, long)]
+    pub loop_count: Option<usize>,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct Analyzer {
     /// eg: qxg
     pub target: String,
 

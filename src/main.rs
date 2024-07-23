@@ -7,6 +7,7 @@ use futures::Future;
 use indicator::print_indicator;
 use tokio::runtime::Builder;
 
+mod analyze;
 mod commands;
 mod indicator;
 mod mongobar;
@@ -125,6 +126,9 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 println!("OPImport done by `./runtime/{}/data.op`.", args.target);
                 Ok(())
             });
+        }
+        Commands::Ana(args) => {
+            analyze::analysis_alilog_csv(&args.target).unwrap();
         }
     }
 
