@@ -751,54 +751,54 @@ impl Mongobar {
                     OpLogs::push_line(self.op_file_revert.clone(), re_row);
                 }
                 op_row::Op::Update => {
-                    let cmd = op_row.cmd.clone();
-                    let qs: Vec<Document> = cmd
-                        .get("updates")
-                        .unwrap()
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .map(|v| {
-                            let q = v.get("q").unwrap();
-                            Document::deserialize(q).unwrap()
-                        })
-                        .collect();
+                    //     let cmd = op_row.cmd.clone();
+                    //     let qs: Vec<Document> = cmd
+                    //         .get("updates")
+                    //         .unwrap()
+                    //         .as_array()
+                    //         .unwrap()
+                    //         .iter()
+                    //         .map(|v| {
+                    //             let q = v.get("q").unwrap();
+                    //             Document::deserialize(q).unwrap()
+                    //         })
+                    //         .collect();
 
-                    for q in qs {
-                        let mut res = client
-                            .database(&op_row.db)
-                            .collection::<Document>(&op_row.coll)
-                            .find(q.clone())
-                            .await?;
+                    //     for q in qs {
+                    //         let mut res = client
+                    //             .database(&op_row.db)
+                    //             .collection::<Document>(&op_row.coll)
+                    //             .find(q.clone())
+                    //             .await?;
 
-                        while let Some(doc) = res.try_next().await? {
-                            let doc = doc.clone();
-                            let re_row = op_row::OpRow {
-                                id: op_row.id.clone(),
-                                ns: op_row.ns.clone(),
-                                ts: op_row.ts,
-                                op: op_row::Op::Update,
-                                db: op_row.db.clone(),
-                                coll: op_row.coll.clone(),
-                                cmd: json!({
-                                    "updates": [
-                                        {
-                                            "q": {
-                                                "_id": doc.get_object_id("_id").unwrap()
-                                            },
-                                            "u": {
-                                                "$set": doc
-                                            },
-                                            "multi": q.get_bool("multi").unwrap_or_default(),
-                                            "upsert": q.get_bool("upsert").unwrap_or_default()
-                                        }
-                                    ],
-                                }),
-                            };
+                    //         while let Some(doc) = res.try_next().await? {
+                    //             let doc = doc.clone();
+                    //             let re_row = op_row::OpRow {
+                    //                 id: op_row.id.clone(),
+                    //                 ns: op_row.ns.clone(),
+                    //                 ts: op_row.ts,
+                    //                 op: op_row::Op::Update,
+                    //                 db: op_row.db.clone(),
+                    //                 coll: op_row.coll.clone(),
+                    //                 cmd: json!({
+                    //                     "updates": [
+                    //                         {
+                    //                             "q": {
+                    //                                 "_id": doc.get_object_id("_id").unwrap()
+                    //                             },
+                    //                             "u": {
+                    //                                 "$set": doc
+                    //                             },
+                    //                             "multi": q.get_bool("multi").unwrap_or_default(),
+                    //                             "upsert": q.get_bool("upsert").unwrap_or_default()
+                    //                         }
+                    //                     ],
+                    //                 }),
+                    //             };
 
-                            OpLogs::push_line(self.op_file_revert.clone(), re_row);
-                        }
-                    }
+                    //             OpLogs::push_line(self.op_file_revert.clone(), re_row);
+                    //         }
+                    //     }
                 }
                 op_row::Op::Delete => {
                     // let qs: Vec<&Value> = op_row
@@ -840,62 +840,62 @@ impl Mongobar {
                 op_row::Op::FindAndModify => {
                     // println!("{:?}", op_row);
 
-                    let remove = op_row
-                        .cmd
-                        .get("remove")
-                        .unwrap()
-                        .as_bool()
-                        .unwrap_or_default();
-                    let query = op_row.cmd.get("query").unwrap();
+                    // let remove = op_row
+                    //     .cmd
+                    //     .get("remove")
+                    //     .unwrap()
+                    //     .as_bool()
+                    //     .unwrap_or_default();
+                    // let query = op_row.cmd.get("query").unwrap();
 
-                    let query = Document::deserialize(query).unwrap();
+                    // let query = Document::deserialize(query).unwrap();
 
-                    let mut res = client
-                        .database(&op_row.db)
-                        .collection::<Document>(&op_row.coll)
-                        .find(query.clone())
-                        .await?;
+                    // let mut res = client
+                    //     .database(&op_row.db)
+                    //     .collection::<Document>(&op_row.coll)
+                    //     .find(query.clone())
+                    //     .await?;
 
-                    while let Some(doc) = res.try_next().await? {
-                        let re_row = if remove {
-                            op_row::OpRow {
-                                id: op_row.id.clone(),
-                                ns: op_row.ns.clone(),
-                                ts: op_row.ts,
-                                op: op_row::Op::Insert,
-                                db: op_row.db.clone(),
-                                coll: op_row.coll.clone(),
-                                cmd: json!({
-                                    "documents": [doc]
-                                }),
-                            }
-                        } else {
-                            op_row::OpRow {
-                                id: op_row.id.clone(),
-                                ns: op_row.ns.clone(),
-                                ts: op_row.ts,
-                                op: op_row::Op::Update,
-                                db: op_row.db.clone(),
-                                coll: op_row.coll.clone(),
-                                cmd: json!({
-                                    "updates": [
-                                        {
-                                            "q": {
-                                                "_id": doc.get("_id")
-                                            },
-                                            "u": {
-                                                "$set": doc
-                                            },
-                                            "multi": false,
-                                            "upsert": false
-                                        }
-                                    ],
-                                }),
-                            }
-                        };
+                    // while let Some(doc) = res.try_next().await? {
+                    //     let re_row = if remove {
+                    //         op_row::OpRow {
+                    //             id: op_row.id.clone(),
+                    //             ns: op_row.ns.clone(),
+                    //             ts: op_row.ts,
+                    //             op: op_row::Op::Insert,
+                    //             db: op_row.db.clone(),
+                    //             coll: op_row.coll.clone(),
+                    //             cmd: json!({
+                    //                 "documents": [doc]
+                    //             }),
+                    //         }
+                    //     } else {
+                    //         op_row::OpRow {
+                    //             id: op_row.id.clone(),
+                    //             ns: op_row.ns.clone(),
+                    //             ts: op_row.ts,
+                    //             op: op_row::Op::Update,
+                    //             db: op_row.db.clone(),
+                    //             coll: op_row.coll.clone(),
+                    //             cmd: json!({
+                    //                 "updates": [
+                    //                     {
+                    //                         "q": {
+                    //                             "_id": doc.get("_id")
+                    //                         },
+                    //                         "u": {
+                    //                             "$set": doc
+                    //                         },
+                    //                         "multi": false,
+                    //                         "upsert": false
+                    //                     }
+                    //                 ],
+                    //             }),
+                    //         }
+                    //     };
 
-                        OpLogs::push_line(self.op_file_revert.clone(), re_row);
-                    }
+                    //     OpLogs::push_line(self.op_file_revert.clone(), re_row);
+                    // }
                 }
             }
         }
