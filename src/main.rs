@@ -105,7 +105,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             target_parse(&mut args.target, args.update);
             exec_tokio(move || async move {
                 let indic = indicator::Indicator::new().init(ind_keys());
-                // print_indicator(&indic);
+                print_indicator(&indic);
                 let m = mongobar::Mongobar::new(&args.target)
                     .set_indicator(indic)
                     .merge_config_rebuild(args.rebuild)
