@@ -14,7 +14,7 @@ use std::time::Instant;
 use crate::indicator::Metric;
 
 #[derive(Debug, Deserialize)]
-struct Record {
+pub struct Record {
     __source__: String,
     __time__: u64,
     __topic__: String,
@@ -44,10 +44,7 @@ struct Stat {
 pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     println!("analysis_alilog_csv: {}", path);
     let map = Arc::new(Mutex::new(HashMap::<String, Stat>::new()));
-    let file = File::open(path)?;
-    let reader = std::io::BufReader::new(file);
-    // let rdr = Arc::new(Mutex::new(csv::Reader::from_reader(reader)));
-    let mut rdr = csv::Reader::from_reader(reader);
+    let file: File = File::open(path)?;
 
     let current = Arc::new(Metric::default());
     let total_lines = 1000000;
@@ -75,79 +72,30 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
         }
     });
 
-    rdr.records().par_bridge().for_each(|result| {
-        if let Ok(record) = result {
-            current.add(1);
-            let record: Record = record.deserialize(None).unwrap();
-            // let command: Value = serde_json::from_str(&record.command)?;
-            let key = format!(
-                "{}:{}#{}",
-                record.coll,
-                record.optype,
-                match_keys(&record.command).join(":")
+    each_alilog_csv(file, |record| {
+        current.add(1);
+        // let command: Value = serde_json::from_str(&record.command)?;
+        let key = format!(
+            "{}:{}#{}",
+            record.coll,
+            record.optype,
+            match_keys(&record.command).join(":")
+        );
+        let mut map = map.lock().unwrap();
+        if let Some(v) = map.get_mut(&key) {
+            v.latency += record.latency;
+            v.count += 1;
+        } else {
+            map.insert(
+                key,
+                Stat {
+                    count: 1,
+                    latency: record.latency,
+                    eg: vec![record.command],
+                },
             );
-            let mut map = map.lock().unwrap();
-            if let Some(v) = map.get_mut(&key) {
-                v.latency += record.latency;
-                v.count += 1;
-            } else {
-                map.insert(
-                    key,
-                    Stat {
-                        count: 1,
-                        latency: record.latency,
-                        eg: vec![record.command],
-                    },
-                );
-            }
         }
     });
-
-    // let mut childs = vec![];
-    // for _ in 1..100 {
-    //     let c = thread::spawn({
-    //         let map = Arc::clone(&map);
-    //         let current = Arc::clone(&current);
-    //         let rdr = Arc::clone(&rdr);
-    //         move || {
-    //             loop {
-    //                 let result = {
-    //                     let mut rdr = rdr.lock().unwrap();
-    //                     rdr.records().next()
-    //                 };
-    //                 if let Some(result) = result {
-    //                     // The iterator yields Result<StringRecord, Error>, so we check the
-    //                     // error here.
-    //                     let record = result.unwrap();
-    //                     current.add(record.len());
-    //                     let record: Record = record.deserialize(None).unwrap();
-    //                     // let command: Value = serde_json::from_str(&record.command)?;
-    //                     let key = format!(
-    //                         "{}:{}#{}",
-    //                         record.coll,
-    //                         record.optype,
-    //                         match_keys(&record.command).join(":")
-    //                     );
-    //                     let mut map = map.lock().unwrap();
-    //                     if let Some(v) = map.get_mut(&key) {
-    //                         *v += 1;
-    //                     } else {
-    //                         map.insert(key, 1);
-    //                     }
-    //                 } else {
-    //                     break;
-    //                 }
-    //             }
-    //         }
-    //     });
-    //     childs.push(c);
-    // }
-
-    // for c in childs {
-    //     c.join().unwrap();
-    // }
-
-    // println!("{:?}", map);
 
     // 生成 csv
     let map = map.lock().unwrap();
@@ -166,6 +114,17 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+pub fn each_alilog_csv<CB: Fn(Record) + Sync + Send>(file: File, cb: CB) {
+    let reader = std::io::BufReader::new(file);
+    let mut rdr = csv::Reader::from_reader(reader);
+    rdr.records().par_bridge().for_each(|result| {
+        if let Ok(record) = result {
+            let record: Record = record.deserialize(None).unwrap();
+            cb(record);
+        }
+    });
 }
 
 static IGNORE_KEYS: Lazy<HashSet<&str>> = Lazy::new(|| {
