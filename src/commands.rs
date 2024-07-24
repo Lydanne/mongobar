@@ -58,6 +58,10 @@ pub struct OPStress {
     /// eg: qxg
     pub target: String,
 
+    /// 是否强制更新
+    #[clap(long)]
+    pub update: Option<bool>,
+
     /// regex filter oplog
     #[clap(short, long)]
     pub filter: Option<String>,
@@ -75,6 +79,10 @@ pub struct OPStress {
 pub struct OPReplay {
     /// eg: qxg
     pub target: String,
+
+    /// 是否强制更新
+    #[clap(long)]
+    pub update: Option<bool>,
 
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]

@@ -67,7 +67,8 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
-        Commands::OPStress(op_stress) => {
+        Commands::OPStress(mut op_stress) => {
+            target_parse(&mut op_stress.target, op_stress.update);
             exec_tokio(move || async move {
                 let indic = indicator::Indicator::new().init(ind_keys());
                 print_indicator(&indic);
@@ -83,7 +84,8 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
-        Commands::OPReplay(op_replay) => {
+        Commands::OPReplay(mut op_replay) => {
+            target_parse(&mut op_replay.target, op_replay.update);
             exec_tokio(move || async move {
                 let indic = indicator::Indicator::new().init(ind_keys());
                 print_indicator(&indic);
@@ -100,23 +102,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
         Commands::UI(mut ui) => {
-            let path = PathBuf::from(ui.target.clone());
-            if path.exists() {
-                let name = path.file_stem().unwrap().to_str().unwrap();
-                ui.target = name.to_string();
-                // 复制文件到 .mongobar/{name}/oplogs.op
-                let m = Mongobar::new(name);
-                if m.exists() {
-                    if ui.update.unwrap_or_default() {
-                        m.clean();
-                        let _ =
-                            std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
-                    }
-                } else {
-                    m.init();
-                    let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
-                }
-            }
+            target_parse(&mut ui.target, ui.update);
             let _ = ui::boot(ui);
         }
         Commands::OPExport(args) => exec_tokio(move || async move {
@@ -156,6 +142,25 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn target_parse(target: &mut String, update: Option<bool>) {
+    let path = PathBuf::from(target.clone());
+    if path.exists() {
+        let name = path.file_stem().unwrap().to_str().unwrap();
+        *target = name.to_string();
+        // 复制文件到 .mongobar/{name}/oplogs.op
+        let m = Mongobar::new(name);
+        if m.exists() {
+            if update.unwrap_or_default() {
+                m.clean();
+                let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+            }
+        } else {
+            m.init();
+            let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+        }
+    }
 }
 
 fn main() {
