@@ -46,10 +46,9 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     let map = Arc::new(Mutex::new(HashMap::<String, Stat>::new()));
     let file: File = File::open(path)?;
 
-    let current = Arc::new(Metric::default());
     let total_lines = 1000000;
 
-    watch_alilog_csv(Arc::clone(&current), total_lines);
+    let current = watch_progress(total_lines);
 
     each_alilog_csv(file, |record| {
         current.add(1);
@@ -106,8 +105,11 @@ pub fn each_alilog_csv<CB: Fn(Record) + Sync + Send>(file: File, cb: CB) {
     });
 }
 
-pub fn watch_alilog_csv(current: Arc<Metric>, total_lines: u64) {
+pub fn watch_progress(total_lines: u64) -> Arc<Metric> {
+    let current: Arc<Metric> = Arc::new(Metric::default());
+
     thread::spawn({
+        let current = current.clone();
         let mut last_tick = Instant::now();
         let mut last_current = 0;
 
@@ -128,6 +130,8 @@ pub fn watch_alilog_csv(current: Arc<Metric>, total_lines: u64) {
             thread::sleep(std::time::Duration::from_secs(1));
         }
     });
+
+    current
 }
 
 static IGNORE_KEYS: Lazy<HashSet<&str>> = Lazy::new(|| {
