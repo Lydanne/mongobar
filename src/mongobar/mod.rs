@@ -1112,6 +1112,37 @@ impl Mongobar {
         logs.push(format!("OPReplay op_exec oplogs.op waiting...",));
         // logs.push(format!("OPReplay op_exec resume.op waiting...",));
 
+        self.op_revert().await?;
+
+        logs.update(1, format!("OPReplay op_exec oplogs.op running..."));
+        let run_stress_inst = Instant::now();
+        self.op_exec(
+            self.op_file_oplogs.clone(),
+            self.config.thread_count,
+            1,
+            op_logs::OpReadMode::StreamLine,
+            OpRunMode::ReadWrite,
+        )
+        .await?;
+        let run_stress_inst = run_stress_inst.elapsed().as_secs_f64();
+        logs.update(
+            1,
+            format!("OPReplay op_exec oplogs.op done run({run_stress_inst:.2}s)"),
+        );
+        // logs.update(2, format!("OPReplay op_exec resume.op running... build({build_resume_inst:.2}s)"));
+        // let run_resume_inst = Instant::now();
+        // self.fork(Indicator::new()).op_run_resume().await?;
+        // let run_resume_inst = run_resume_inst.elapsed().as_secs_f64();
+        // logs.update(2, format!("OPReplay op_exec resume.op done build({build_resume_inst:.2}s) run({run_resume_inst:.2}s)"));
+        // logs.update(
+        //     2,
+        //     format!("OPReplay op_exec resume.op done build({build_resume_inst:.2}s)"),
+        // );
+        Ok(())
+    }
+
+    pub async fn op_run_revert(&self) -> Result<(), anyhow::Error> {
+        let logs = self.indicator.take("logs").unwrap();
         let build_inst = Instant::now();
         if !self.op_file_revert.exists() {
             let _ = fs::remove_file(&self.op_file_revert);
@@ -1152,30 +1183,6 @@ impl Mongobar {
             .await?;
         let run_revert_inst = run_revert_inst.elapsed().as_secs_f64();
         logs.update(0, format!("OPReplay op_exec revert.op done  build({build_inst:.2}s) run({run_revert_inst:.2}s)"));
-        logs.update(1, format!("OPReplay op_exec oplogs.op running..."));
-        let run_stress_inst = Instant::now();
-        self.op_exec(
-            self.op_file_oplogs.clone(),
-            self.config.thread_count,
-            1,
-            op_logs::OpReadMode::StreamLine,
-            OpRunMode::ReadWrite,
-        )
-        .await?;
-        let run_stress_inst = run_stress_inst.elapsed().as_secs_f64();
-        logs.update(
-            1,
-            format!("OPReplay op_exec oplogs.op done run({run_stress_inst:.2}s)"),
-        );
-        // logs.update(2, format!("OPReplay op_exec resume.op running... build({build_resume_inst:.2}s)"));
-        // let run_resume_inst = Instant::now();
-        // self.fork(Indicator::new()).op_run_resume().await?;
-        // let run_resume_inst = run_resume_inst.elapsed().as_secs_f64();
-        // logs.update(2, format!("OPReplay op_exec resume.op done build({build_resume_inst:.2}s) run({run_resume_inst:.2}s)"));
-        // logs.update(
-        //     2,
-        //     format!("OPReplay op_exec resume.op done build({build_resume_inst:.2}s)"),
-        // );
         Ok(())
     }
 

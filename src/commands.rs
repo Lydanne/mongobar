@@ -23,6 +23,9 @@ pub enum Commands {
     /// stress test OPRecord find operation
     OPReplay(OPReplay),
 
+    /// stress test OPRecord find operation
+    OPRevert(OPReplay),
+
     /// export oplogs to local
     OPExport(OPReplay),
 
