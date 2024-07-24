@@ -27,3 +27,19 @@ pub(crate) enum Op {
     FindAndModify,
     GetMore,
 }
+
+impl From<String> for Op {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "update" => Op::Update,
+            "delete" => Op::Delete,
+            "find" => Op::Find,
+            "count" => Op::Count,
+            "aggregate" => Op::Aggregate,
+            "findAndModify" => Op::FindAndModify,
+            "getMore" => Op::GetMore,
+            "insert" => Op::Insert,
+            _ => Op::None,
+        }
+    }
+}

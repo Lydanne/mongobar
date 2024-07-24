@@ -29,8 +29,11 @@ pub enum Commands {
     /// export oplogs to local
     OPImport(OPImport),
 
-    /// export oplogs to local
+    /// 分析阿里云的审计日志
     Ana(Analyzer),
+
+    /// 转换阿里云的审计日志为压测 oplogs.op
+    Cov(Convert),
 
     /// start a tui.
     UI(UI),
@@ -119,7 +122,6 @@ pub struct UI {
 
 #[derive(clap::Parser, Debug, Clone)]
 pub struct Analyzer {
-    /// eg: qxg
     pub target: String,
 
     /// regex filter oplog
@@ -137,4 +139,17 @@ pub struct Analyzer {
     /// 循环次数
     #[clap(short, long)]
     pub loop_count: Option<usize>,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct Convert {
+    pub target: String,
+
+    /// regex filter oplog
+    #[clap(short, long)]
+    pub filter: Option<String>,
+
+    /// 是否重新构建
+    #[clap(short, long)]
+    pub rebuild: Option<bool>,
 }

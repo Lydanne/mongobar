@@ -9,10 +9,12 @@ use tokio::runtime::Builder;
 
 mod analyze;
 mod commands;
+mod convert;
 mod indicator;
 mod mongobar;
 mod signal;
 mod ui;
+mod utils;
 
 pub fn ind_keys() -> Vec<String> {
     vec![
@@ -129,6 +131,9 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Ana(args) => {
             analyze::analysis_alilog_csv(&args.target).unwrap();
+        }
+        Commands::Cov(args) => {
+            convert::convert_alilog_csv(&args.target).unwrap();
         }
     }
 
