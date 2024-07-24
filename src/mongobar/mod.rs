@@ -394,7 +394,13 @@ impl Mongobar {
                                     cmd.remove("cursorId");
                                 }
                                 // println!("after cmd {:?}", cmd);
-                                let cmd: Document = Document::deserialize(cmd).unwrap();
+                                let cmd: Document = Document::deserialize(cmd).expect(
+                                    format!(
+                                        "Thread[{}] [{}] [{}] cmd deserialize error",
+                                        thread_index, row.id, row_index
+                                    )
+                                    .as_str(),
+                                );
                                 let start = Instant::now();
                                 let res = db.run_cursor_command(cmd).await;
                                 let end = start.elapsed();
