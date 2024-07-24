@@ -497,10 +497,7 @@ impl Mongobar {
                                         ));
                                     }
                                 } else {
-                                    let _ = db
-                                        .collection::<Document>(&row.coll)
-                                        .find(doc! {})
-                                        .limit(row.cmd.get("batchSize").unwrap().as_i64().unwrap());
+                                    let _ = db.collection::<Document>(&row.coll).find(doc! {});
                                 }
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
