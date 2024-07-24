@@ -1,10 +1,11 @@
-use std::env;
+use std::{env, path::PathBuf};
 
 use bson::DateTime;
 use clap::Parser;
 use commands::{Cli, Commands};
 use futures::Future;
 use indicator::print_indicator;
+use mongobar::Mongobar;
 use tokio::runtime::Builder;
 
 mod analyze;
@@ -98,7 +99,24 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
-        Commands::UI(ui) => {
+        Commands::UI(mut ui) => {
+            let path = PathBuf::from(ui.target.clone());
+            if path.exists() {
+                let name = path.file_stem().unwrap().to_str().unwrap();
+                ui.target = name.to_string();
+                // 复制文件到 .mongobar/{name}/oplogs.op
+                let m = Mongobar::new(name);
+                if m.exists() {
+                    if ui.update.unwrap_or_default() {
+                        m.clean();
+                        let _ =
+                            std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+                    }
+                } else {
+                    m.init();
+                    let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+                }
+            }
             let _ = ui::boot(ui);
         }
         Commands::OPExport(args) => exec_tokio(move || async move {
