@@ -12,6 +12,7 @@ use std::thread;
 use std::time::Instant;
 
 use crate::indicator::Metric;
+use crate::utils::count_lines;
 
 #[derive(Debug, Deserialize)]
 pub struct Record {
@@ -46,7 +47,7 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     let map = Arc::new(Mutex::new(HashMap::<String, Stat>::new()));
     let file: File = File::open(path)?;
 
-    let total_lines = 1000000;
+    let total_lines = count_lines(path);
 
     let current = watch_progress(total_lines);
 
@@ -105,7 +106,7 @@ pub fn each_alilog_csv<CB: Fn(Record) + Sync + Send>(file: File, cb: CB) {
     });
 }
 
-pub fn watch_progress(total_lines: u64) -> Arc<Metric> {
+pub fn watch_progress(total_lines: usize) -> Arc<Metric> {
     let current: Arc<Metric> = Arc::new(Metric::default());
 
     thread::spawn({
