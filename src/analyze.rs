@@ -121,7 +121,7 @@ pub fn watch_progress(total_lines: usize) -> Arc<Metric> {
                 last_current = current;
                 last_tick = Instant::now();
                 println!(
-                    "[{:.2}%]({}/{}) {}/s",
+                    "Progress[{:.2}%]({}/{}) {}/s",
                     (current as f64 / total_lines as f64) * 100.0,
                     current,
                     total_lines,
