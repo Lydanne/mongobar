@@ -663,7 +663,7 @@ fn ui(frame: &mut Frame, app: &App) {
     } else if cp.starts_with("/Replay/Start") {
         app.update_current_at();
         render_stress_view(frame, area, app);
-    } else if cp.starts_with("/Replay/Resume") {
+    } else if cp.starts_with("/Replay/Revert") {
         app.update_current_at();
         render_stress_view(frame, area, app);
     } else if cp.starts_with("/Replay/OpLog") {
