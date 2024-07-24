@@ -1123,7 +1123,7 @@ impl Mongobar {
             format!("OPReplay op_exec revert.op waiting... build({build_inst:.2}s)"),
         );
         logs.update(1, format!("OPReplay op_exec oplogs.op waiting..."));
-        logs.update(2, format!("OPReplay op_exec resume.op building..."));
+        // logs.update(2, format!("OPReplay op_exec resume.op building..."));
 
         // let build_resume_inst = Instant::now();
         // if !self.op_file_resume.exists() || self.config.rebuild.unwrap_or_default() {
