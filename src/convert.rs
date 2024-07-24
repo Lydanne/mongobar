@@ -16,7 +16,7 @@ use crate::{
     utils::{count_lines, match_date_replace},
 };
 
-pub fn convert_alilog_csv(csv_path: &str) -> Result<(), anyhow::Error> {
+pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<(), anyhow::Error> {
     println!("convert_alilog_csv: {}", csv_path);
     let file: File = File::open(csv_path)?;
     let current = watch_progress(count_lines(csv_path));
@@ -25,6 +25,9 @@ pub fn convert_alilog_csv(csv_path: &str) -> Result<(), anyhow::Error> {
 
     each_alilog_csv(file, |record| {
         current.add(1);
+        if filter_db.len() > 0 && record.db != filter_db {
+            return;
+        }
         let cmd: Value = serde_json::from_str(&record.command).unwrap();
         let op_row = OpRow {
             id: to_sha3(record.command.as_str()),

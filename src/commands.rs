@@ -153,6 +153,10 @@ pub struct Convert {
     #[clap(short, long)]
     pub filter: Option<String>,
 
+    /// filter db
+    #[clap(long)]
+    pub filter_db: Option<String>,
+
     /// 是否重新构建
     #[clap(short, long)]
     pub rebuild: Option<bool>,

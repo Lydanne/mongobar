@@ -151,7 +151,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             analyze::analysis_alilog_csv(&args.target).unwrap();
         }
         Commands::Cov(args) => {
-            convert::convert_alilog_csv(&args.target).unwrap();
+            convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default()).unwrap();
         }
     }
 
