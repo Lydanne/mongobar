@@ -112,7 +112,7 @@ pub struct UI {
     pub rebuild: Option<bool>,
 
     /// 是否强制更新
-    #[clap(short, long)]
+    #[clap(long)]
     pub update: Option<bool>,
 
     ///覆盖配置的 uri
