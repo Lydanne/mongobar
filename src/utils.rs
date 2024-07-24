@@ -39,16 +39,10 @@ pub fn format_date(date: &str) -> String {
 }
 
 pub fn match_date_replace(input_date: &str) -> String {
-    let mut res = String::from(input_date);
-    if let Some(captures) = DATE_RE.captures(&input_date) {
-        for cap in captures.iter().skip(1) {
-            if let Some(cap) = cap {
-                let date_str = cap.as_str();
-                // println!("date_str: {} {}", date_str, format_date(date_str));
-                res = res.replace(date_str, &format_date(date_str));
-            }
-        }
-    }
+    let res = DATE_RE.replace_all(input_date, |caps: &regex::Captures| {
+        let date_str = caps.get(1).unwrap().as_str();
+        format_date(date_str)
+    });
     res.to_string()
 }
 
@@ -58,8 +52,9 @@ mod tests {
 
     #[test]
     fn test_match_date_replace() {
-        let input_date = "{\"id\":\"7b17adef8237aff0ffe256e5733a1ff2\",\"op\":\"Find\",\"db\":\"xgj\",\"coll\":\"notifies\",\"cmd\":{\"find\":\"notifies\",\"filter\":{\"create_at\":{\"$gt\":{\"$date\":\"2022-09-01T08:00:00.000+0800\"}},\"cls\":{\"$in\":[{\"$oid\":\"605db9438b75f3247ce73ef7\"},{\"$oid\":\"637738c552ff71997131a5b1\"}]},\"is_del\":false,\"setting.delay_publish\":false,\"$and\":[{\"$or\":[{\"level\":{\"$exists\":false}},{\"level\":0}]},{\"$or\":[{\"sp_members\":{\"$in\":[\"605db9c022fb10108149a7d7\",\"637c6c4f1032c13bd918d27f\"]}},{\"sp_members\":{\"$eq\":[]}}]},{\"$or\":[{\"ex_members\":{\"$nin\":[\"605db9c022fb10108149a7d7\",\"637c6c4f1032c13bd918d27f\"]}}]}]},\"sort\":{\"sort_time\":-1,\"create_at\":-1},\"projection\":{\"type\":1,\"title\":1,\"text_content\":1,\"cls\":1,\"class_name\":1,\"create_at\":1,\"sort_time\":1,\"daka_end_day\":1,\"daka_start_day\":1,\"subject\":1,\"end_day\":1,\"daka_day\":1,\"daka_rest\":1,\"creator_wx_name\":1,\"daka_latest\":1,\"need_feedback\":1,\"feedback_type\":1,\"status\":1,\"feedbacks\":1,\"tiku\":1,\"atype\":1,\"cate\":1,\"relevant\":1,\"datika\":1,\"fellow_read\":1,\"fellow_write\":1,\"groupBy\":1,\"from_album_cate\":1,\"files\":1,\"stats_list\":1,\"cycleDay\":1,\"accepts\":1,\"invest\":1,\"creator_wx_avatar\":1,\"need_check\":1,\"setting\":1,\"score\":1,\"sa\":1,\"fee\":1,\"attach\":1},\"limit\":10,\"lsid\":{\"id\":{\"$binary\":\"fpiHYejVTSSn+CZS74LL0A==\",\"$type\":\"04\"}},\"$clusterTime\":{\"clusterTime\":{\"$timestamp\":{\"t\":1721355565,\"i\":1010}},\"signature\":{\"hash\":{\"$binary\":\"XJKn9IOd9YU64EkOucajn2wVWBc=\",\"$type\":\"00\"},\"keyId\":{\"$numberLong\":\"7349532703881955184\"}}},\"$db\":\"xgj\"},\"ns\":\"xgj.notifies\",\"ts\":1721355566}";
+        let input_date = "{\"id\":\"7b17adef8237aff0ffe256e5733a1ff2\",\"op\":\"Find\",\"db\":\"xgj\",\"coll\":\"notifies\",\"cmd\":{\"find\":\"notifies\",\"filter\":{\"create_at\":{\"$gt\":{\"$date\":\"2022-09-01T08:00:00.000+0800\",\"$gt3\":{\"$date\":\"2022-09-01T08:00:00.000+0800\"}},\"cls\":{\"$in\":[{\"$oid\":\"605db9438b75f3247ce73ef7\"},{\"$oid\":\"637738c552ff71997131a5b1\"}]},\"is_del\":false,\"setting.delay_publish\":false,\"$and\":[{\"$or\":[{\"level\":{\"$exists\":false}},{\"level\":0}]},{\"$or\":[{\"sp_members\":{\"$in\":[\"605db9c022fb10108149a7d7\",\"637c6c4f1032c13bd918d27f\"]}},{\"sp_members\":{\"$eq\":[]}}]},{\"$or\":[{\"ex_members\":{\"$nin\":[\"605db9c022fb10108149a7d7\",\"637c6c4f1032c13bd918d27f\"]}}]}]},\"sort\":{\"sort_time\":-1,\"create_at\":-1},\"projection\":{\"type\":1,\"title\":1,\"text_content\":1,\"cls\":1,\"class_name\":1,\"create_at\":1,\"sort_time\":1,\"daka_end_day\":1,\"daka_start_day\":1,\"subject\":1,\"end_day\":1,\"daka_day\":1,\"daka_rest\":1,\"creator_wx_name\":1,\"daka_latest\":1,\"need_feedback\":1,\"feedback_type\":1,\"status\":1,\"feedbacks\":1,\"tiku\":1,\"atype\":1,\"cate\":1,\"relevant\":1,\"datika\":1,\"fellow_read\":1,\"fellow_write\":1,\"groupBy\":1,\"from_album_cate\":1,\"files\":1,\"stats_list\":1,\"cycleDay\":1,\"accepts\":1,\"invest\":1,\"creator_wx_avatar\":1,\"need_check\":1,\"setting\":1,\"score\":1,\"sa\":1,\"fee\":1,\"attach\":1},\"limit\":10,\"lsid\":{\"id\":{\"$binary\":\"fpiHYejVTSSn+CZS74LL0A==\",\"$type\":\"04\"}},\"$clusterTime\":{\"clusterTime\":{\"$timestamp\":{\"t\":1721355565,\"i\":1010}},\"signature\":{\"hash\":{\"$binary\":\"XJKn9IOd9YU64EkOucajn2wVWBc=\",\"$type\":\"00\"},\"keyId\":{\"$numberLong\":\"7349532703881955184\"}}},\"$db\":\"xgj\"},\"ns\":\"xgj.notifies\",\"ts\":1721355566}";
         let output_date = match_date_replace(input_date);
+        println!("{}", output_date);
         assert!(output_date.contains("2022-09-01T08:00:00.000Z"));
     }
 }
