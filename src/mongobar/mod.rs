@@ -1112,7 +1112,7 @@ impl Mongobar {
         logs.push(format!("OPReplay op_exec oplogs.op waiting...",));
         // logs.push(format!("OPReplay op_exec resume.op waiting...",));
 
-        self.op_revert().await?;
+        // self.op_revert().await?;
 
         logs.update(1, format!("OPReplay op_exec oplogs.op running..."));
         let run_stress_inst = Instant::now();
@@ -1172,15 +1172,15 @@ impl Mongobar {
         //     format!("OPReplay op_exec resume.op waiting... build({build_resume_inst:.2}s)"),
         // );
         let run_revert_inst = Instant::now();
-        self.fork(Indicator::new())
-            .op_exec(
-                self.op_file_revert.clone(),
-                self.config.thread_count,
-                1,
-                op_logs::OpReadMode::StreamLine,
-                OpRunMode::ReadWrite,
-            )
-            .await?;
+        // self.fork(Indicator::new())
+        self.op_exec(
+            self.op_file_revert.clone(),
+            self.config.thread_count,
+            1,
+            op_logs::OpReadMode::StreamLine,
+            OpRunMode::ReadWrite,
+        )
+        .await?;
         let run_revert_inst = run_revert_inst.elapsed().as_secs_f64();
         logs.update(0, format!("OPReplay op_exec revert.op done  build({build_inst:.2}s) run({run_revert_inst:.2}s)"));
         Ok(())

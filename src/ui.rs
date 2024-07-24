@@ -270,7 +270,7 @@ fn run_app<B: Backend>(
                         "/Stress" => {
                             app.router.push(
                                 vec![
-                                    Route::new(RouteType::Push, "OpLog", "OpLog"),
+                                    // Route::new(RouteType::Push, "OpLog", "OpLog"),
                                     Route::new(RouteType::Push, "Start", "Start"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
@@ -280,8 +280,8 @@ fn run_app<B: Backend>(
                         "/Replay" => {
                             app.router.push(
                                 vec![
+                                    Route::new(RouteType::Push, "Revert", "Revert"),
                                     Route::new(RouteType::Push, "Start", "Start"),
-                                    Route::new(RouteType::Push, "Resume", "Resume"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
                                 0,
@@ -572,14 +572,10 @@ fn run_app<B: Backend>(
                             app.show_popup = false;
                             app.router.pop();
                         }
-                        "/Replay/Resume" => {
+                        "/Replay/Revert" => {
                             app.router.push(
-                                vec![
-                                    Route::new(RouteType::Push, "Stop", "Stop")
-                                        .with_span(Span::default().fg(Color::Red)),
-                                    Route::new(RouteType::Push, "Back", "Back")
-                                        .with_span(Span::default().fg(Color::Red)),
-                                ],
+                                vec![Route::new(RouteType::Push, "Stop", "Stop")
+                                    .with_span(Span::default().fg(Color::Red))],
                                 0,
                             );
 
@@ -606,7 +602,7 @@ fn run_app<B: Backend>(
                                         .merge_config_rebuild(ui.rebuild.clone())
                                         .merge_config_uri(ui.uri.clone())
                                         .init()
-                                        .op_run_resume()
+                                        .op_run_revert()
                                         .await?;
 
                                     Ok(())
@@ -622,7 +618,7 @@ fn run_app<B: Backend>(
                                     .push(format!("Run {}/{} op done.", query_count, progress));
                             });
                         }
-                        "/Replay/Resume/Stop" => {
+                        "/Replay/Revert/Stop" => {
                             app.signal.set(1);
                             app.router.pop();
                         }
