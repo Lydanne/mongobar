@@ -49,28 +49,7 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     let current = Arc::new(Metric::default());
     let total_lines = 1000000;
 
-    thread::spawn({
-        let current = Arc::clone(&current);
-        let mut last_tick = Instant::now();
-        let mut last_current = 0;
-
-        move || loop {
-            if last_tick.elapsed().as_secs() >= 1 {
-                let current = current.get() as u64;
-                let speed = (current - last_current) / last_tick.elapsed().as_secs();
-                last_current = current;
-                last_tick = Instant::now();
-                println!(
-                    "[{:.2}%]({}/{}) {}/s",
-                    (current as f64 / total_lines as f64) * 100.0,
-                    current,
-                    total_lines,
-                    speed as f64
-                );
-            }
-            thread::sleep(std::time::Duration::from_secs(1));
-        }
-    });
+    watch_alilog_csv(Arc::clone(&current), total_lines);
 
     each_alilog_csv(file, |record| {
         current.add(1);
@@ -123,6 +102,30 @@ pub fn each_alilog_csv<CB: Fn(Record) + Sync + Send>(file: File, cb: CB) {
         if let Ok(record) = result {
             let record: Record = record.deserialize(None).unwrap();
             cb(record);
+        }
+    });
+}
+
+pub fn watch_alilog_csv(current: Arc<Metric>, total_lines: u64) {
+    thread::spawn({
+        let mut last_tick = Instant::now();
+        let mut last_current = 0;
+
+        move || loop {
+            if last_tick.elapsed().as_secs() >= 1 {
+                let current = current.get() as u64;
+                let speed = (current - last_current) / last_tick.elapsed().as_secs();
+                last_current = current;
+                last_tick = Instant::now();
+                println!(
+                    "[{:.2}%]({}/{}) {}/s",
+                    (current as f64 / total_lines as f64) * 100.0,
+                    current,
+                    total_lines,
+                    speed as f64
+                );
+            }
+            thread::sleep(std::time::Duration::from_secs(1));
         }
     });
 }
