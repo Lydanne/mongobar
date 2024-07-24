@@ -13,7 +13,7 @@ use sha3::{
 use crate::{
     analyze::{each_alilog_csv, watch_progress},
     mongobar::op_row::{Op, OpRow},
-    utils::count_lines,
+    utils::{count_lines, match_date_replace},
 };
 
 pub fn convert_alilog_csv(csv_path: &str) -> Result<(), anyhow::Error> {
@@ -40,7 +40,13 @@ pub fn convert_alilog_csv(csv_path: &str) -> Result<(), anyhow::Error> {
         writer
             .lock()
             .unwrap()
-            .write_all(format!("{}\n", serde_json::to_string(&op_row).unwrap()).as_bytes())
+            .write_all(
+                format!(
+                    "{}\n",
+                    match_date_replace(&serde_json::to_string(&op_row).unwrap())
+                )
+                .as_bytes(),
+            )
             .unwrap();
     });
     Ok(())
