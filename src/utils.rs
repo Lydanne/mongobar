@@ -8,13 +8,13 @@ pub fn count_lines(file_path: &str) -> usize {
 }
 
 use chrono::{DateTime, TimeZone, Utc};
+use once_cell::sync::Lazy;
 use regex::Regex;
-use std::sync::LazyLock;
 
-static DATE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}[+-]\d{4})").unwrap());
+static DATE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}[+-]\d{4})").unwrap());
 
-static DATE_ITEM_RE: LazyLock<Regex> = LazyLock::new(|| {
+static DATE_ITEM_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}).(\d{3})([+-]\d{4})").unwrap()
 });
 
