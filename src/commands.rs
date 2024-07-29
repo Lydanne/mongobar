@@ -141,6 +141,10 @@ pub struct UI {
     /// 循环次数
     #[clap(short, long)]
     pub loop_count: Option<usize>,
+
+    /// 线程数量
+    #[clap(short, long)]
+    pub thread_count: Option<usize>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
