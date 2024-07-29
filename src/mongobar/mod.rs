@@ -266,7 +266,7 @@ impl Mongobar {
             let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
 
             if let Ok(was) = cur_profile.get_i32("was") {
-                if was != 0 {
+                if was == 2 {
                     db.run_command(doc! { "profile": 0 }).await?;
                 }
             }
