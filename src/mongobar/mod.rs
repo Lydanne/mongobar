@@ -391,25 +391,10 @@ impl Mongobar {
                             op_row::Op::Find => {
                                 let db = client.database(&row.db);
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
-                                let mut cmd = row.cmd.clone();
                                 // println!("before cmd {:?}", cmd);
-                                if let Value::Object(ref mut cmd) = cmd {
-                                    cmd.remove("lsid");
-                                    cmd.remove("$clusterTime");
-                                    cmd.remove("$db");
-                                    cmd.remove("cursor");
-                                    cmd.remove("cursorId");
-                                }
-                                // println!("after cmd {:?}", cmd);
-                                let cmd: Document = Document::deserialize(cmd).expect(
-                                    format!(
-                                        "Thread[{}] [{}] [{}] cmd deserialize error",
-                                        thread_index, row.id, row_index
-                                    )
-                                    .as_str(),
-                                );
+
                                 let start = Instant::now();
-                                let res = db.run_cursor_command(cmd).await;
+                                let res = db.run_cursor_command(row.args).await;
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
@@ -431,19 +416,10 @@ impl Mongobar {
                             }
                             op_row::Op::Count => {
                                 let db = client.database(&row.db);
-                                let mut cmd = row.cmd.clone();
-                                // println!("before cmd {:?}", cmd);
-                                if let Value::Object(ref mut cmd) = cmd {
-                                    cmd.remove("lsid");
-                                    cmd.remove("$clusterTime");
-                                    cmd.remove("$db");
-                                    cmd.remove("cursor");
-                                    cmd.remove("cursorId");
-                                }
+
                                 // println!("after cmd {:?}", cmd);
-                                let cmd: Document = Document::deserialize(cmd).unwrap();
                                 let start = Instant::now();
-                                let res = db.run_command(cmd).await;
+                                let res = db.run_command(row.args).await;
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
                                 query_count.increment();
@@ -757,6 +733,7 @@ impl Mongobar {
                         db: op_row.db.clone(),
                         coll: op_row.coll.clone(),
                         cmd: re_cmd,
+                        args: doc! {},
                     };
                     OpLogs::push_line(self.op_file_revert.clone(), re_row);
                 }
@@ -973,6 +950,7 @@ impl Mongobar {
                                         }
                                     ],
                                 }),
+                                args: doc! {},
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -995,6 +973,7 @@ impl Mongobar {
                                         }
                                     ],
                                 }),
+                                args: doc! {},
                             };
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
                         }
@@ -1044,6 +1023,7 @@ impl Mongobar {
                                         }
                                     ],
                                 }),
+                                args: doc! {},
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1094,6 +1074,7 @@ impl Mongobar {
                                         }
                                     ],
                                 }),
+                                args: doc! {},
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1278,6 +1259,7 @@ impl Mongobar {
                                             cmd: json!({
                                                 "documents": [doc]
                                             }),
+                                            args: doc! {},
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);
@@ -1328,6 +1310,7 @@ impl Mongobar {
                                             cmd: json!({
                                                 "documents": [doc]
                                             }),
+                                            args: doc! {},
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);

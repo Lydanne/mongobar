@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use bson::doc;
 use serde_json::Value;
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
@@ -37,6 +38,7 @@ pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<(), anyho
             coll: record.coll,
             cmd: cmd.get("args").unwrap().to_owned(),
             ts: record.time as i64,
+            args: doc! {},
         };
         // println!("{}", serde_json::to_string(&op_row).unwrap());
         // println!("{:?}", record);

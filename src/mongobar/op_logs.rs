@@ -6,8 +6,11 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex, RwLock};
 
+use bson::Document;
 use ratatui::buffer;
 use regex::Regex;
+use serde::Deserialize;
+use serde_json::Value;
 
 use super::op_row::{self, OpRow};
 
@@ -96,6 +99,7 @@ impl OpLogs {
                     // writeln!(file, "[{}]{}", line.len(), line).unwrap();
                     serde_json::from_str(&line).expect(&line)
                 })
+                .map(|item| trans_value_to_doc(item))
                 .collect();
         let len = buffer.len();
 
@@ -118,6 +122,7 @@ impl OpLogs {
                 return true;
             })
             .map(|line| serde_json::from_str(&line).unwrap())
+            .map(|item| trans_value_to_doc(item))
             .collect();
         self.full_buffer = buffer;
         self.length = self.full_buffer.len();
@@ -307,4 +312,25 @@ pub fn reverse_file(file_path: &str) -> std::io::Result<()> {
     fs::rename(file_path.to_string() + ".reverse", file_path)?;
 
     Ok(())
+}
+
+pub fn trans_value_to_doc(mut item: OpRow) -> OpRow {
+    match &item.op {
+        op_row::Op::Find | op_row::Op::Count => {
+            if let Value::Object(ref mut cmd) = item.cmd {
+                cmd.remove("lsid");
+                cmd.remove("$clusterTime");
+                cmd.remove("$db");
+                cmd.remove("cursor");
+                cmd.remove("cursorId");
+            }
+            // println!("after cmd {:?}", cmd);
+            let cmd: Document = Document::deserialize(&item.cmd)
+                .expect(format!("Id[{}] cmd deserialize error", item.id).as_str());
+            item.args = cmd;
+        }
+        _ => {}
+    }
+
+    item
 }

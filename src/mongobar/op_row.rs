@@ -12,6 +12,9 @@ pub(crate) struct OpRow {
     pub cmd: Value,
     pub ns: String,
     pub ts: i64,
+
+    #[serde(skip)]
+    pub args: Document,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
