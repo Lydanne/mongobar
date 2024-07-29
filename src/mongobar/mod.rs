@@ -127,6 +127,13 @@ impl Mongobar {
         self
     }
 
+    pub fn merge_config_thread_count(mut self, thread_count: Option<usize>) -> Self {
+        if let Some(thread_count) = thread_count {
+            self.config.thread_count = thread_count as u32;
+        }
+        self
+    }
+
     pub fn clean(self) -> Self {
         let _ = fs::remove_dir_all(&self.cwd());
         Self::new(&self.name).init()

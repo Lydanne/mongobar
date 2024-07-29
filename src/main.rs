@@ -76,6 +76,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .set_indicator(indic)
                     .merge_config_uri(op_stress.uri)
                     .merge_config_loop_count(op_stress.loop_count)
+                    .merge_config_thread_count(op_stress.thread_count)
                     .init();
                 println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
                 m.op_stress(op_stress.filter).await?;
@@ -93,6 +94,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .set_indicator(indic)
                     .merge_config_rebuild(op_replay.rebuild)
                     .merge_config_uri(op_replay.uri)
+                    .merge_config_thread_count(op_replay.thread_count)
                     .init();
                 println!("OPReplay [{}] Start.", chrono::Local::now().timestamp());
                 m.op_replay().await?;
@@ -200,7 +202,8 @@ where
             num_cpus::get()
                 .checked_sub(1)
                 .unwrap_or(num_cpus::get_physical())
-                * 4,
+                * 2
+                + 1,
         )
         .enable_all()
         .build()

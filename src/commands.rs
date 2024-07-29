@@ -76,6 +76,10 @@ pub struct OPStress {
     /// 循环次数
     #[clap(short, long)]
     pub loop_count: Option<usize>,
+
+    /// 线程数量
+    #[clap(short, long)]
+    pub thread_count: Option<usize>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -94,6 +98,10 @@ pub struct OPReplay {
     ///覆盖配置的 uri
     #[clap(short, long)]
     pub uri: Option<String>,
+
+    /// 线程数量
+    #[clap(short, long)]
+    pub thread_count: Option<usize>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
