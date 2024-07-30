@@ -49,7 +49,7 @@ struct App {
 
     boot_at: i64,
     current_at: Metric,
-    stress_start_at: Metric,
+    start_at: Metric,
 
     query_chart_data: Vec<(f64, f64)>,
     query_count_max: f64,
@@ -91,7 +91,7 @@ impl App {
 
             boot_at: chrono::Local::now().timestamp(), // s
             current_at: Metric::default(),             // s
-            stress_start_at: Metric::default(),        // s
+            start_at: Metric::default(),               // s
 
             query_count_max: f64::MIN,
             query_count_min: f64::MAX,
@@ -121,9 +121,8 @@ impl App {
         }
     }
 
-    fn update_stress_start_at(&self) {
-        self.stress_start_at
-            .set(chrono::Local::now().timestamp() as usize);
+    fn update_start_at(&self) {
+        self.start_at.set(chrono::Local::now().timestamp() as usize);
     }
 
     fn reset(&mut self) {
@@ -143,8 +142,8 @@ impl App {
             return;
         }
         // let current_at = chrono::Local::now().timestamp() as f64;
-        // let stress_start_at = self.stress_start_at.get() as f64;
-        // let dur = current_at - stress_start_at;
+        // let start_at = self.start_at.get() as f64;
+        // let dur = current_at - start_at;
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
             if tick_index == 0 {
@@ -350,7 +349,7 @@ fn run_app<B: Backend>(
                                 0,
                             );
 
-                            app.update_stress_start_at();
+                            app.update_start_at();
                             app.reset();
 
                             let target = app.ui.target.clone();
@@ -364,6 +363,8 @@ fn run_app<B: Backend>(
 
                             thread::spawn(move || {
                                 let inner_signal = signal.clone();
+
+                                let cur = Instant::now();
 
                                 exec_tokio(move || async move {
                                     Mongobar::new(&target)
@@ -467,7 +468,7 @@ fn run_app<B: Backend>(
                                 0,
                             );
 
-                            app.update_stress_start_at();
+                            app.update_start_at();
                             app.reset();
 
                             let target = app.ui.target.clone();
@@ -581,7 +582,7 @@ fn run_app<B: Backend>(
                                 0,
                             );
 
-                            app.update_stress_start_at();
+                            app.update_start_at();
                             app.reset();
 
                             let target = app.ui.target.clone();
@@ -860,20 +861,25 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let boot_worker = app.indicator.take("boot_worker").unwrap().get();
     let dyn_threads = app.indicator.take("dyn_threads").unwrap().get();
     let dyn_cc_limit = app.indicator.take("dyn_cc_limit").unwrap().get();
+    let start_at = app.start_at.get();
+    let current_at = app.current_at.get();
     // let query_qps = app.indicator.take("query_qps").unwrap().get();
 
     let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
         Line::from(format!(
-            "> Thread: {}/{}+{}",
-            boot_worker, thread_count, dyn_threads
-        )),
-        Line::from(format!(
-            "> Query : avg_qps({:.2}/s) qps({}/s) cc({}<{})",
-            (query_count as f64) / (app.current_at.get() - app.stress_start_at.get()) as f64,
-            app.diff_query_count,
+            "> Thread: {}/({}+{}) cc({}<{}) latency({}/s)",
+            boot_worker,
+            thread_count,
+            dyn_threads,
             querying,
             dyn_cc_limit,
+            current_at - start_at
+        )),
+        Line::from(format!(
+            "> Query : avg_qps({:.2}/s) qps({}/s)",
+            (query_count as f64) / (app.current_at.get() - app.start_at.get()) as f64,
+            app.diff_query_count,
         )),
         Line::from(format!(
             "> Cost  : avg_dur({:.2}ms) dur({:.2}ms)",

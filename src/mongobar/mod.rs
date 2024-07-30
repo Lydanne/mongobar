@@ -1098,7 +1098,7 @@ impl Mongobar {
     /// 4. 【程序】执行压测 op_stress 操作，这会将这段时间内地操作再次执行（只执行 1 遍）
     pub async fn op_replay(&self) -> Result<(), anyhow::Error> {
         let logs = self.indicator.take("logs").unwrap();
-        logs.push(format!("OPReplay op_exec revert.op building...",));
+        logs.push(format!("OPReplay op_exec revert.op done",));
         logs.push(format!("OPReplay op_exec oplogs.op waiting...",));
         // logs.push(format!("OPReplay op_exec resume.op waiting...",));
 
