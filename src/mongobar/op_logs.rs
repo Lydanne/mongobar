@@ -19,7 +19,7 @@ static BUFF_SIZE: usize = 10000;
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
     StreamLine,
-    ReadLine(usize),
+    ReadLine(bool),
     FullLine(Option<String>),
 }
 
@@ -225,7 +225,7 @@ impl OpLogs {
                     return None;
                 }
             }
-            OpReadMode::ReadLine(max_loop) => {
+            OpReadMode::ReadLine(never_loop) => {
                 // println!("read line");
                 let mut buf_reader = self.buf_reader.as_ref().unwrap().lock().unwrap();
                 let mut buffer = String::new();
@@ -234,7 +234,9 @@ impl OpLogs {
                     // println!("read lined {:?}", buffer);
 
                     if b == 0 {
-                        buf_reader.seek(SeekFrom::Start(0)).unwrap();
+                        if never_loop {
+                            buf_reader.seek(SeekFrom::Start(0)).unwrap();
+                        }
                         return None;
                     }
                 } else {
