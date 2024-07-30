@@ -19,6 +19,7 @@ static BUFF_SIZE: usize = 10000;
 #[derive(Debug, Clone)]
 pub enum OpReadMode {
     StreamLine,
+    ReadLine(usize),
     FullLine(Option<String>),
 }
 
@@ -32,6 +33,7 @@ pub struct OpLogs {
     pub op_file: PathBuf,
     pub length: usize,
     pub mode: OpReadMode,
+    pub buf_reader: Option<Mutex<BufReader<File>>>,
     pub lock: Arc<Mutex<()>>,
 }
 
@@ -47,8 +49,16 @@ impl OpLogs {
             offset: AtomicUsize::new(0),
             byte_offset: AtomicUsize::new(0),
             index: AtomicUsize::new(0),
-            mode,
             lock: Arc::new(Mutex::new(())),
+            buf_reader: if let OpReadMode::ReadLine(_) = mode {
+                Some(Mutex::new(BufReader::with_capacity(
+                    1024 * 1024 * 100,
+                    File::open(op_file.to_str().unwrap()).unwrap(),
+                )))
+            } else {
+                None
+            },
+            mode,
         }
     }
 
@@ -61,6 +71,7 @@ impl OpLogs {
             OpReadMode::FullLine(filter) => {
                 self.load_full_line(filter.clone());
             }
+            OpReadMode::ReadLine(_) => {}
         }
         self
     }
@@ -213,6 +224,24 @@ impl OpLogs {
                 } else {
                     return None;
                 }
+            }
+            OpReadMode::ReadLine(max_loop) => {
+                // println!("read line");
+                let mut buf_reader = self.buf_reader.as_ref().unwrap().lock().unwrap();
+                let mut buffer = String::new();
+
+                if let Ok(b) = buf_reader.read_line(&mut buffer) {
+                    // println!("read lined {:?}", buffer);
+
+                    if b == 0 {
+                        buf_reader.seek(SeekFrom::Start(0)).unwrap();
+                        return None;
+                    }
+                } else {
+                    return None;
+                }
+                let row: OpRow = serde_json::from_str(&buffer).unwrap();
+                return Some(trans_value_to_doc(row));
             }
         }
     }

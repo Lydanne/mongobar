@@ -676,6 +676,8 @@ impl Mongobar {
             self.config.thread_count,
             loop_count,
             op_logs::OpReadMode::FullLine(filter),
+            // op_logs::OpReadMode::ReadLine(0),
+            // op_logs::OpReadMode::StreamLine,
             OpRunMode::Readonly,
         )
         .await?;
