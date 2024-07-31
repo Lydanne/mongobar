@@ -221,7 +221,7 @@ impl Mongobar {
             chrono::Local::now().timestamp(),
             2
         );
-        db.run_command(doc! { "profile": 0 }).await?;
+        db.run_command(doc! { "profile": 2 }).await?;
 
         self.op_state.record_start_ts = chrono::Local::now().timestamp_millis() as i64;
         self.save_state();
