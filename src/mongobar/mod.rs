@@ -332,14 +332,28 @@ impl Mongobar {
                     row.cmd = json!(cmd);
                 }
                 "command" => {
-                    row.id = to_sha3(&cmd.to_string());
-                    let nsp = get_db_coll(&ns);
-                    row.ns = ns;
-                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
-                    row.op = op_row::Op::Command;
-                    row.db = nsp.0;
-                    row.coll = nsp.1;
-                    row.cmd = json!(cmd);
+                    if let Ok(_) = cmd.get_str("aggregate") {
+                        if let Err(_) = cmd.get_array("pipeline") {
+                            continue;
+                        }
+                        row.id = to_sha3(&cmd.to_string());
+                        let nsp = get_db_coll(&ns);
+                        row.ns = ns;
+                        row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                        row.op = op_row::Op::Aggregate;
+                        row.db = nsp.0;
+                        row.coll = nsp.1;
+                        row.cmd = json!(cmd);
+                    } else {
+                        row.id = to_sha3(&cmd.to_string());
+                        let nsp = get_db_coll(&ns);
+                        row.ns = ns;
+                        row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                        row.op = op_row::Op::Command;
+                        row.db = nsp.0;
+                        row.coll = nsp.1;
+                        row.cmd = json!(cmd);
+                    }
                 }
                 "aggregate" => {
                     if let Err(_) = cmd.get_array("pipeline") {
