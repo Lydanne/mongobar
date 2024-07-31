@@ -41,10 +41,17 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
     match cli.commands {
         Commands::OPRecord(args) => {
             exec_tokio(move || async move {
-                mongobar::Mongobar::new(&args.target)
-                    .init()
-                    .op_record()
-                    .await?;
+                if args.force {
+                    mongobar::Mongobar::new(&args.target)
+                        .clean()
+                        .op_record()
+                        .await?;
+                } else {
+                    mongobar::Mongobar::new(&args.target)
+                        .init()
+                        .op_record()
+                        .await?;
+                }
 
                 Ok(())
             });
