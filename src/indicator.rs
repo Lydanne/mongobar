@@ -1,5 +1,8 @@
 use std::{
     collections::HashMap,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
     sync::{atomic::AtomicUsize, Arc, Mutex},
     thread,
 };
@@ -8,6 +11,8 @@ use std::{
 pub struct Metric {
     number: AtomicUsize,
     logs: Mutex<Vec<String>>,
+    print_file: Mutex<Option<BufWriter<File>>>,
+    print_file_path: Option<PathBuf>,
     ordering: std::sync::atomic::Ordering,
 }
 
@@ -23,7 +28,14 @@ impl Metric {
             number: AtomicUsize::new(0),
             logs: Mutex::new(Vec::new()),
             ordering,
+            print_file: Mutex::new(None),
+            print_file_path: None,
         }
+    }
+
+    pub fn set_print_file(mut self, print_file: PathBuf) -> Self {
+        self.print_file_path = Some(print_file);
+        self
     }
 
     pub fn increment(&self) {
@@ -51,6 +63,17 @@ impl Metric {
     }
 
     pub fn push(&self, log: String) {
+        if let Some(print_file_path) = &self.print_file_path {
+            let mut print_file = self.print_file.lock().unwrap();
+            if print_file.is_none() {
+                let print_file_buf = File::create(print_file_path).unwrap();
+                *print_file = Some(BufWriter::new(print_file_buf));
+            }
+            let print_file_buf = print_file.as_mut().unwrap();
+            print_file_buf
+                .write_all(format!("{}\n", log).as_bytes())
+                .unwrap();
+        }
         self.logs.lock().unwrap().push(log);
     }
 
@@ -85,7 +108,7 @@ impl Indicator {
         }
     }
 
-    pub fn init(mut self, metrics: Vec<String>) -> Self {
+    pub fn init(mut self, metrics: Vec<String>, print_file: String) -> Self {
         let mut metric = HashMap::new();
         for m in metrics {
             // if m.contains("progress") {
@@ -94,7 +117,13 @@ impl Indicator {
             //         Arc::new(Metric::new(std::sync::atomic::Ordering::SeqCst)),
             //     );
             // } else {
-            metric.insert(m, Arc::new(Metric::default()));
+            metric.insert(
+                m.clone(),
+                Arc::new(Metric::default().set_print_file(PathBuf::from(format!(
+                    "./.mongobar/{}/{}.log",
+                    print_file, m
+                )))),
+            );
             // }
         }
         self.metric = metric;

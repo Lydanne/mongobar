@@ -85,7 +85,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::OPStress(mut op_stress) => {
             target_parse(&mut op_stress.target, op_stress.update);
             exec_tokio(move || async move {
-                let indic = indicator::Indicator::new().init(ind_keys());
+                let indic = indicator::Indicator::new().init(ind_keys(), op_stress.target.clone());
                 print_indicator(&indic);
                 let m = mongobar::Mongobar::new(&op_stress.target)
                     .set_indicator(indic)
@@ -103,7 +103,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::OPReplay(mut op_replay) => {
             target_parse(&mut op_replay.target, op_replay.update);
             exec_tokio(move || async move {
-                let indic = indicator::Indicator::new().init(ind_keys());
+                let indic = indicator::Indicator::new().init(ind_keys(), op_replay.target.clone());
                 print_indicator(&indic);
                 let m = mongobar::Mongobar::new(&op_replay.target)
                     .set_indicator(indic)
@@ -121,7 +121,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::OPRevert(mut args) => {
             target_parse(&mut args.target, args.update);
             exec_tokio(move || async move {
-                let indic = indicator::Indicator::new().init(ind_keys());
+                let indic = indicator::Indicator::new().init(ind_keys(), args.target.clone());
                 print_indicator(&indic);
                 let m = mongobar::Mongobar::new(&args.target)
                     .set_indicator(indic)
@@ -154,7 +154,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         }),
         Commands::OPImport(args) => {
             exec_tokio(move || async move {
-                let indic = indicator::Indicator::new().init(ind_keys());
+                let indic = indicator::Indicator::new().init(ind_keys(), args.target.clone());
                 print_indicator(&indic);
                 mongobar::Mongobar::new(&args.target)
                     .merge_config_uri(Some(args.uri))

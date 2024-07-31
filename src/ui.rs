@@ -73,7 +73,7 @@ struct App {
 
 impl App {
     fn new(ui: UI) -> Self {
-        let indic = indicator::Indicator::new().init(ind_keys());
+        let indic = indicator::Indicator::new().init(ind_keys(), ui.target.clone());
         Self {
             oplog_scroll: (0, 0),
             oplogs: vec![],
