@@ -26,6 +26,7 @@ pub(crate) enum Op {
     Delete,
     Find,
     Count,
+    Command,
     Aggregate,
     FindAndModify,
     GetMore,
