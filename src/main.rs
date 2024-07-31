@@ -94,7 +94,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .merge_config_thread_count(op_stress.thread_count)
                     .init();
                 println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
-                m.op_stress(op_stress.filter).await?;
+                m.op_stress(op_stress.filter, op_stress.readonly).await?;
                 println!("OPStress [{}] Done", chrono::Local::now().timestamp());
 
                 Ok(())

@@ -93,6 +93,10 @@ pub struct OPStress {
     /// 线程数量
     #[clap(short, long)]
     pub thread_count: Option<usize>,
+
+    /// 只运行读操作
+    #[clap(long)]
+    pub readonly: bool,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -158,6 +162,10 @@ pub struct UI {
     /// 线程数量
     #[clap(short, long)]
     pub thread_count: Option<usize>,
+
+    /// 只运行读操作
+    #[clap(long)]
+    pub readonly: bool,
 }
 
 #[derive(clap::Parser, Debug, Clone)]

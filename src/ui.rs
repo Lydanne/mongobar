@@ -375,7 +375,7 @@ fn run_app<B: Backend>(
                                         .merge_config_rebuild(ui.rebuild.clone())
                                         .merge_config_uri(ui.uri.clone())
                                         .init()
-                                        .op_stress(filter)
+                                        .op_stress(filter, ui.readonly)
                                         .await?;
 
                                     Ok(())

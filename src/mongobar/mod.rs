@@ -902,7 +902,11 @@ impl Mongobar {
     // 5. 【程序】等待所有线程结束
     // 6. 【程序】标记结束时间 毫秒
     // 7. 【程序】计算分析
-    pub async fn op_stress(&self, filter: Option<String>) -> Result<(), anyhow::Error> {
+    pub async fn op_stress(
+        &self,
+        filter: Option<String>,
+        readonly: bool,
+    ) -> Result<(), anyhow::Error> {
         let loop_count = self.config.loop_count;
         self.op_exec(
             self.op_file_oplogs.clone(),
@@ -911,7 +915,11 @@ impl Mongobar {
             op_logs::OpReadMode::FullLine(filter),
             // op_logs::OpReadMode::ReadLine(0),
             // op_logs::OpReadMode::StreamLine,
-            OpRunMode::Readonly,
+            if readonly {
+                OpRunMode::Readonly
+            } else {
+                OpRunMode::ReadWrite
+            },
         )
         .await?;
         Ok(())
