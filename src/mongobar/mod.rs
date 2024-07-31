@@ -216,7 +216,12 @@ impl Mongobar {
 
         let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
 
-        db.run_command(doc! { "profile": 2 }).await?;
+        println!(
+            "OPRecord [{}] set profile was: {}",
+            chrono::Local::now().timestamp(),
+            2
+        );
+        db.run_command(doc! { "profile": 0 }).await?;
 
         self.op_state.record_start_ts = chrono::Local::now().timestamp_millis() as i64;
         self.save_state();
@@ -230,6 +235,11 @@ impl Mongobar {
         std::io::stdin().read_line(&mut input).expect("READ ERROR");
 
         if let Ok(was) = cur_profile.get_i32("was") {
+            println!(
+                "OPRecord [{}] set profile was: {}",
+                chrono::Local::now().timestamp(),
+                was
+            );
             db.run_command(doc! { "profile": was }).await?;
         }
 
