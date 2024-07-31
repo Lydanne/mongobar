@@ -38,7 +38,16 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.commands {
-        Commands::OPRecord(args) => {}
+        Commands::OPRecord(args) => {
+            exec_tokio(move || async move {
+                mongobar::Mongobar::new(&args.target)
+                    .init()
+                    .op_record()
+                    .await?;
+
+                Ok(())
+            });
+        }
         Commands::OPPull(args) => {
             exec_tokio(move || async move {
                 let time_range: Vec<_> = args
@@ -60,7 +69,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                         .await?;
                 }
 
-                println!("OPRecord done output to `./runtime/{}/*`.", args.target);
+                println!("OPRecord done output to `./mongobar/{}/*`.", args.target);
 
                 Ok(())
             });
@@ -129,7 +138,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 .await?;
 
             println!(
-                "OPExport done output to `./runtime/{}/data.op`.",
+                "OPExport done output to `./mongobar/{}/data.op`.",
                 args.target
             );
 
@@ -146,7 +155,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .op_import()
                     .await?;
 
-                println!("OPImport done by `./runtime/{}/data.op`.", args.target);
+                println!("OPImport done by `./mongobar/{}/data.op`.", args.target);
                 Ok(())
             });
         }

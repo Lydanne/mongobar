@@ -205,13 +205,68 @@ impl Mongobar {
     /// 4. 【程序】读取 oplog.rs 中的数据，找到对应的操作
     /// 5. 【程序】读取 db.system.profile 中的数据，找到对应的操作
     /// 6. 【程序】处理两个数据，并且按时间排序，最终生成可以执行的逻辑，生成文件
-    pub async fn op_pull(&mut self, time_range: (DateTime, DateTime)) -> Result<(), anyhow::Error> {
-        if self.op_state.record_end_ts > 0 {
-            panic!("[OPRecord] 已经录制过了，不能重复录制，请先调用 clean 清理数据");
+    pub async fn op_record(&mut self) -> Result<(), anyhow::Error> {
+        println!(
+            "OPRecord [{}] Start collecting logs, please operate...",
+            chrono::Local::now().timestamp()
+        );
+        let client = Client::with_uri_str(&self.config.uri).await?;
+
+        let db = client.database(&self.config.db);
+
+        let cur_profile = db.run_command(doc! {  "profile": -1 }).await?;
+
+        db.run_command(doc! { "profile": 2 }).await?;
+
+        self.op_state.record_start_ts = chrono::Local::now().timestamp_millis() as i64;
+        self.save_state();
+
+        println!(
+            "OPRecord [{}] Please enter 'OK' to complete the collection:",
+            chrono::Local::now().timestamp()
+        );
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).expect("READ ERROR");
+
+        if let Ok(was) = cur_profile.get_i32("was") {
+            db.run_command(doc! { "profile": was }).await?;
         }
 
+        if input.trim().to_lowercase() != "ok" {
+            println!("OPRecord [{}] Cancelled.", chrono::Local::now().timestamp());
+            return Ok(());
+        }
+
+        self.op_state.record_end_ts = chrono::Local::now().timestamp_millis() as i64;
+        self.save_state();
+
+        self.op_pull((
+            DateTime::from_millis(self.op_state.record_start_ts),
+            DateTime::from_millis(self.op_state.record_end_ts),
+        ))
+        .await?;
+
+        println!(
+            "OPRecord [{}] Done, output to `./mongobar/{}/*`.",
+            chrono::Local::now().timestamp(),
+            self.name
+        );
+
+        Ok(())
+    }
+
+    pub async fn op_pull(&mut self, time_range: (DateTime, DateTime)) -> Result<(), anyhow::Error> {
         let start_time = time_range.0;
         let end_time = time_range.1;
+
+        println!(
+            "OPPull [{}] start_time: {} end_time: {}",
+            chrono::Local::now().timestamp(),
+            start_time,
+            end_time
+        );
+
         let client = Client::with_uri_str(&self.config.uri).await?;
 
         let db = client.database(&self.config.db);
@@ -235,10 +290,6 @@ impl Mongobar {
             // let doc_as_json = serde_json::to_string(&v)?;
             // println!("{}", doc_as_json);
         }
-
-        self.op_state.record_start_ts = start_time.timestamp_millis() as i64;
-        self.op_state.record_end_ts = end_time.timestamp_millis() as i64;
-        self.save_state();
 
         Ok(())
     }
