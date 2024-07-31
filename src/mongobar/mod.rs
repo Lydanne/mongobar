@@ -227,7 +227,7 @@ impl Mongobar {
         self.save_state();
 
         println!(
-            "OPRecord [{}] Please enter 'OK' to complete the collection:",
+            "OPRecord [{}] Please enter 'Y' to complete the collection:",
             chrono::Local::now().timestamp()
         );
 
@@ -243,7 +243,7 @@ impl Mongobar {
             db.run_command(doc! { "profile": was }).await?;
         }
 
-        if input.trim().to_lowercase() != "ok" {
+        if input.trim().to_lowercase() != "y" {
             println!("OPRecord [{}] Cancelled.", chrono::Local::now().timestamp());
             return Ok(());
         }
