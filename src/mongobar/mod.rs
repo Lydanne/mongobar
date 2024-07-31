@@ -12,7 +12,10 @@ use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::indicator::Indicator;
+use crate::{
+    indicator::Indicator,
+    utils::{get_db_coll, to_sha3},
+};
 use futures::TryStreamExt;
 use op_logs::{reverse_file, OpLogs, OpReadMode};
 use tokio::{fs::OpenOptions, io::AsyncWriteExt, time::Instant};
@@ -152,36 +155,6 @@ impl Mongobar {
         fs::write(&self.op_state_file, content).unwrap();
     }
 
-    pub fn add_row_by_profile(&mut self, doc: &Document) {
-        let ns = doc.get_str("ns").unwrap().to_string();
-        if ns.contains("system.profile") {
-            return;
-        }
-        // let doc_as_json = serde_json::to_string(&doc).unwrap();
-        // println!("{}", doc_as_json);
-        let mut row = op_row::OpRow::default();
-        let op = doc.get_str("op").unwrap();
-        let cmd = doc.get_document("command").unwrap();
-        match op {
-            "query" => {
-                if let Err(_) = doc.get_str("queryHash") {
-                    return;
-                }
-                row.id = doc.get_str("queryHash").unwrap().to_string();
-                row.ns = ns;
-                row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
-                row.op = op_row::Op::Find;
-                row.db = cmd.get_str("$db").unwrap().to_string();
-                row.coll = cmd.get_str("find").unwrap().to_string();
-
-                row.cmd = json!(cmd);
-            }
-            _ => {}
-        }
-        // println!("{:?}", row);
-        op_logs::OpLogs::push_line(self.op_file_oplogs.clone(), row);
-    }
-
     // pub fn load_op_rows(&mut self) {
     //     let content = fs::read_to_string(&self.op_file_padding).unwrap();
     //     let rows: Vec<op_row::OpRow> = content
@@ -286,7 +259,7 @@ impl Mongobar {
         let ns_ne = self.config.db.clone() + ".system.profile";
 
         let query = doc! {
-           "op": "query",
+        //    "op": "query",
            "ns": { "$ne": ns_ne },
            "ts": { "$gte": start_time, "$lt": end_time }
         };
@@ -295,10 +268,117 @@ impl Mongobar {
         let mut cursor: Cursor<Document> = c.find(query).await?;
 
         while cursor.advance().await? {
-            let v = cursor.deserialize_current().unwrap();
-            self.add_row_by_profile(&v);
-            // let doc_as_json = serde_json::to_string(&v)?;
+            let doc = cursor.deserialize_current().unwrap();
+
+            let ns = doc.get_str("ns").unwrap().to_string();
+            if ns.contains("system.profile") {
+                continue;
+            }
+            // let doc_as_json = serde_json::to_string(&doc).unwrap();
             // println!("{}", doc_as_json);
+            let mut row = op_row::OpRow::default();
+            let op = doc.get_str("op").unwrap();
+            let cmd = doc.get_document("command").unwrap();
+            match op {
+                "query" => {
+                    if let Err(_) = doc.get_str("queryHash") {
+                        continue;
+                    }
+                    row.id = to_sha3(&cmd.to_string());
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Find;
+                    row.db = cmd.get_str("$db").unwrap().to_string();
+                    row.coll = cmd.get_str("find").unwrap().to_string();
+
+                    row.cmd = json!(cmd);
+                }
+                "insert" => {
+                    if let Err(_) = cmd.get_array("documents") {
+                        continue;
+                    }
+                    row.id = to_sha3(&cmd.to_string());
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Insert;
+                    row.db = cmd.get_str("$db").unwrap().to_string();
+                    row.coll = cmd.get_str("insert").unwrap().to_string();
+                    row.cmd = json!(cmd);
+                }
+                "update" => {
+                    if let Err(_) = cmd.get_document("u") {
+                        continue;
+                    }
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Update;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                "remove" => {
+                    if let Err(_) = cmd.get_document("q") {
+                        continue;
+                    }
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Delete;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                "command" => {
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Command;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                "aggregate" => {
+                    if let Err(_) = cmd.get_array("pipeline") {
+                        continue;
+                    }
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::Aggregate;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                "getmore" => {
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::GetMore;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                "findAndModify" => {
+                    row.id = to_sha3(&cmd.to_string());
+                    let nsp = get_db_coll(&ns);
+                    row.ns = ns;
+                    row.ts = doc.get_datetime("ts").unwrap().timestamp_millis() as i64;
+                    row.op = op_row::Op::FindAndModify;
+                    row.db = nsp.0;
+                    row.coll = nsp.1;
+                    row.cmd = json!(cmd);
+                }
+                _ => {}
+            }
+
+            // println!("{:?}", row);
+            op_logs::OpLogs::push_line(self.op_file_oplogs.clone(), row);
         }
 
         Ok(())
@@ -446,7 +526,7 @@ impl Mongobar {
                         progress.increment();
                         querying.increment();
                         match &row.op {
-                            op_row::Op::Find => {
+                            op_row::Op::Find | &op_row::Op::Command => {
                                 let db = client.database(&row.db);
                                 // out_size.fetch_add(row.cmd.len(), Ordering::Relaxed);
                                 // println!("before cmd {:?}", cmd);
@@ -764,6 +844,7 @@ impl Mongobar {
                 op_row::Op::Aggregate => (),
                 op_row::Op::Find => (),
                 op_row::Op::Count => (),
+                op_row::Op::Command => (),
                 op_row::Op::Insert => {
                     let cmd = op_row.cmd.clone();
                     let _ids = cmd
@@ -967,6 +1048,7 @@ impl Mongobar {
                 op_row::Op::Aggregate => (),
                 op_row::Op::Find => (),
                 op_row::Op::Count => (),
+                op_row::Op::Command => (),
                 op_row::Op::Insert => {
                     let cmd = op_row.cmd.clone();
                     let values = cmd
@@ -1287,6 +1369,7 @@ impl Mongobar {
                         op_row::Op::Count => {}
                         op_row::Op::Insert => {}
                         op_row::Op::Delete => {}
+                        op_row::Op::Command => {}
                         op_row::Op::Update => {
                             let cmd = op_row.cmd.clone();
                             let qs: Vec<Document> = cmd
