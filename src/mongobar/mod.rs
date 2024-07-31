@@ -647,11 +647,54 @@ impl Mongobar {
                             op_row::Op::Update => {
                                 if let OpRunMode::ReadWrite = op_run_mode {
                                     let db = client.database(&row.db);
-                                    let updates =
-                                        row.cmd.get("updates").unwrap().as_array().unwrap();
                                     let start = Instant::now();
-                                    for update in updates.iter() {
-                                        let update = Document::deserialize(update.clone()).unwrap();
+                                    if let Some(updates) = row.cmd.get("updates") {
+                                        let updates = updates.as_array().unwrap();
+                                        for update in updates.iter() {
+                                            let update =
+                                                Document::deserialize(update.clone()).unwrap();
+                                            let q = update.get_document("q");
+                                            if let Ok(q) = q {
+                                                let u = update.get_document("u");
+                                                if let Ok(u) = u {
+                                                    let multi = update
+                                                        .get_bool("multi")
+                                                        .unwrap_or_default();
+                                                    let upsert = update
+                                                        .get_bool("upsert")
+                                                        .unwrap_or_default();
+                                                    if multi {
+                                                        let res = db
+                                                            .collection::<Document>(&row.coll)
+                                                            .update_many(q.clone(), u.clone())
+                                                            .await;
+                                                        if let Err(e) = &res {
+                                                            logs.push(format!(
+                                                                "OPExec [{}] [{}] Update Err {}",
+                                                                chrono::Local::now().timestamp(),
+                                                                row.id,
+                                                                e
+                                                            ));
+                                                        }
+                                                    } else {
+                                                        let res = db
+                                                            .collection::<Document>(&row.coll)
+                                                            .update_one(q.clone(), u.clone())
+                                                            .await;
+                                                        if let Err(e) = &res {
+                                                            logs.push(format!(
+                                                                "OPExec [{}] [{}] Update Err {}",
+                                                                chrono::Local::now().timestamp(),
+                                                                row.id,
+                                                                e
+                                                            ));
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else if let Some(_) = row.cmd.get("q") {
+                                        let update = Document::deserialize(&row.cmd).unwrap();
                                         let q = update.get_document("q");
                                         if let Ok(q) = q {
                                             let u = update.get_document("u");
@@ -660,17 +703,33 @@ impl Mongobar {
                                                     update.get_bool("multi").unwrap_or_default();
                                                 let upsert =
                                                     update.get_bool("upsert").unwrap_or_default();
-                                                let res = db
-                                                    .collection::<Document>(&row.coll)
-                                                    .update_many(q.clone(), u.clone())
-                                                    .await;
-                                                if let Err(e) = &res {
-                                                    logs.push(format!(
-                                                        "OPExec [{}] [{}] Update Err {}",
-                                                        chrono::Local::now().timestamp(),
-                                                        row.id,
-                                                        e
-                                                    ));
+
+                                                if multi {
+                                                    let res = db
+                                                        .collection::<Document>(&row.coll)
+                                                        .update_many(q.clone(), u.clone())
+                                                        .await;
+                                                    if let Err(e) = &res {
+                                                        logs.push(format!(
+                                                            "OPExec [{}] [{}] Update Err {}",
+                                                            chrono::Local::now().timestamp(),
+                                                            row.id,
+                                                            e
+                                                        ));
+                                                    }
+                                                } else {
+                                                    let res = db
+                                                        .collection::<Document>(&row.coll)
+                                                        .update_one(q.clone(), u.clone())
+                                                        .await;
+                                                    if let Err(e) = &res {
+                                                        logs.push(format!(
+                                                            "OPExec [{}] [{}] Update Err {}",
+                                                            chrono::Local::now().timestamp(),
+                                                            row.id,
+                                                            e
+                                                        ));
+                                                    }
                                                 }
                                             }
                                         }
