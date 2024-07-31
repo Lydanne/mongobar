@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::Write,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -17,11 +18,12 @@ use crate::{
     utils::{count_lines, match_date_replace},
 };
 
-pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<(), anyhow::Error> {
+pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<PathBuf, anyhow::Error> {
     println!("convert_alilog_csv: {}", csv_path);
     let file: File = File::open(csv_path)?;
-    let current = watch_progress(count_lines(csv_path));
-    let w_file = File::create("oplogs.op")?;
+    let current = watch_progress("Convert".to_string(), count_lines(csv_path));
+    let out_path = PathBuf::from(format!("oplogs.{}.op", chrono::Local::now().timestamp()));
+    let w_file = File::create(out_path.clone())?;
     let writer = Arc::new(Mutex::new(std::io::BufWriter::new(w_file)));
 
     each_alilog_csv(file, |record| {
@@ -54,7 +56,7 @@ pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<(), anyho
             )
             .unwrap();
     });
-    Ok(())
+    Ok(out_path)
 }
 
 fn to_sha3(s: &str) -> String {

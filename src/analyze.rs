@@ -49,7 +49,7 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
 
     let total_lines = count_lines(path);
 
-    let current = watch_progress(total_lines);
+    let current = watch_progress("Analysis".to_string(), total_lines);
 
     each_alilog_csv(file, |record| {
         current.add(1);
@@ -106,7 +106,7 @@ pub fn each_alilog_csv<CB: Fn(Record) + Sync + Send>(file: File, cb: CB) {
     });
 }
 
-pub fn watch_progress(total_lines: usize) -> Arc<Metric> {
+pub fn watch_progress(name: String, total_lines: usize) -> Arc<Metric> {
     let current: Arc<Metric> = Arc::new(Metric::default());
 
     thread::spawn({
@@ -117,11 +117,17 @@ pub fn watch_progress(total_lines: usize) -> Arc<Metric> {
         move || loop {
             if last_tick.elapsed().as_secs() >= 1 {
                 let current = current.get() as u64;
+
+                if current >= (total_lines - 1) as u64 {
+                    break;
+                }
+
                 let speed = (current - last_current) / last_tick.elapsed().as_secs();
                 last_current = current;
                 last_tick = Instant::now();
                 println!(
-                    "Progress[{:.2}%]({}/{}) {}/s",
+                    "{} Progress[{:.2}%]({}/{}) {}/s",
+                    name,
                     (current as f64 / total_lines as f64) * 100.0,
                     current,
                     total_lines,

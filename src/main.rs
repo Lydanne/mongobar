@@ -1,8 +1,9 @@
 use std::{env, path::PathBuf};
 
 use bson::DateTime;
-use clap::Parser;
+use clap::{builder::Str, Parser};
 use commands::{Cli, Commands};
+use convert::convert_alilog_csv;
 use futures::Future;
 use indicator::print_indicator;
 use mongobar::Mongobar;
@@ -173,18 +174,51 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
 fn target_parse(target: &mut String, update: Option<bool>) {
     let path = PathBuf::from(target.clone());
     if path.exists() {
-        let name = path.file_stem().unwrap().to_str().unwrap();
-        *target = name.to_string();
-        // 复制文件到 .mongobar/{name}/oplogs.op
-        let m = Mongobar::new(name);
-        if m.exists() {
-            if update.unwrap_or_default() {
-                m.clean();
-                let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+        let ext = path.extension().unwrap();
+        match ext.to_str().unwrap() {
+            "op" => {
+                let name = path.file_stem().unwrap().to_str().unwrap();
+                *target = name.to_string();
+                // 复制文件到 .mongobar/{name}/oplogs.op
+                let m = Mongobar::new(name);
+                if m.exists() {
+                    if update.unwrap_or_default() {
+                        m.clean();
+                        let _ =
+                            std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+                    }
+                } else {
+                    m.init();
+                    let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+                }
             }
-        } else {
-            m.init();
-            let _ = std::fs::copy(path.clone(), format!("./.mongobar/{}/oplogs.op", name));
+            "csv" => {
+                let name = path.file_stem().unwrap().to_str().unwrap();
+                *target = name.to_string();
+                let m = Mongobar::new(name);
+
+                // 复制文件到 .mongobar/{name}/oplogs.csv
+                if m.exists() {
+                    if update.unwrap_or_default() {
+                        let oplogs_path =
+                            convert_alilog_csv(path.to_str().unwrap(), m.config.db.clone()).expect(
+                                "convert_alilog_csv failed, please check the csv file format.",
+                            );
+                        m.clean();
+                        let _ =
+                            std::fs::rename(oplogs_path, format!("./.mongobar/{}/oplogs.op", name));
+                    }
+                } else {
+                    let oplogs_path =
+                        convert_alilog_csv(path.to_str().unwrap(), m.config.db.clone())
+                            .expect("convert_alilog_csv failed, please check the csv file format.");
+                    m.init();
+                    let _ = std::fs::rename(oplogs_path, format!("./.mongobar/{}/oplogs.op", name));
+                }
+            }
+            _ => {
+                println!("Invalid file type: {:?}", ext);
+            }
         }
     }
 }
