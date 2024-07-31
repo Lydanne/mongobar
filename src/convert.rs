@@ -7,15 +7,11 @@ use std::{
 
 use bson::doc;
 use serde_json::Value;
-use sha3::{
-    digest::{ExtendableOutput, Update, XofReader},
-    Shake128,
-};
 
 use crate::{
     analyze::{each_alilog_csv, watch_progress},
     mongobar::op_row::{Op, OpRow},
-    utils::{count_lines, match_date_replace},
+    utils::{count_lines, match_date_replace, to_sha3},
 };
 
 pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<PathBuf, anyhow::Error> {
@@ -57,16 +53,4 @@ pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<PathBuf, 
             .unwrap();
     });
     Ok(out_path)
-}
-
-fn to_sha3(s: &str) -> String {
-    let mut hasher = Shake128::default();
-
-    hasher.update(s.as_bytes());
-
-    let mut output = [0u8; 16];
-    hasher.finalize_xof().read(&mut output);
-
-    // 输出结果
-    hex::encode(output)
 }

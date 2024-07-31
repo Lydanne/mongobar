@@ -10,6 +10,8 @@ pub fn count_lines(file_path: &str) -> usize {
 use chrono::{DateTime, TimeZone, Utc};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use sha3::digest::{ExtendableOutput, Update, XofReader};
+use sha3::Shake128;
 
 static DATE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}[+-]\d{4})").unwrap());
@@ -44,6 +46,27 @@ pub fn match_date_replace(input_date: &str) -> String {
         format_date(date_str)
     });
     res.to_string()
+}
+
+pub fn to_sha3(s: &str) -> String {
+    let mut hasher = Shake128::default();
+
+    hasher.update(s.as_bytes());
+
+    let mut output = [0u8; 16];
+    hasher.finalize_xof().read(&mut output);
+
+    // 输出结果
+    hex::encode(output)
+}
+
+pub fn get_db_coll(ns: &str) -> (String, String) {
+    let parts: Vec<&str> = ns.split('.').collect();
+    if parts.len() == 2 {
+        (parts[0].to_string(), parts[1].to_string())
+    } else {
+        ("".to_string(), "".to_string())
+    }
 }
 
 #[cfg(test)]
