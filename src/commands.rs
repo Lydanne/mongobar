@@ -140,7 +140,7 @@ pub struct UI {
     pub target: String,
 
     /// regex filter oplog
-    #[clap(short, long)]
+    #[clap(long)]
     pub filter: Option<String>,
 
     /// 强制重新构建恢复恢复 oplogs
