@@ -17,6 +17,9 @@ pub enum Commands {
     /// record mongo profile by time range
     OPRecord(OPRecord),
 
+    /// record mongo profile by time range
+    OPPull(OPPull),
+
     /// stress test OPRecord find operation
     OPStress(OPStress),
 
@@ -44,6 +47,16 @@ pub enum Commands {
 
 #[derive(clap::Parser, Debug, Clone)]
 pub struct OPRecord {
+    /// eg: qxg
+    pub target: String,
+
+    /// force to clean
+    #[clap(short, long)]
+    pub force: bool,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct OPPull {
     /// eg: qxg
     pub target: String,
 

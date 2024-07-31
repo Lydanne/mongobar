@@ -38,31 +38,29 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.commands {
-        Commands::OPRecord(op_record) => {
+        Commands::OPRecord(args) => {}
+        Commands::OPPull(args) => {
             exec_tokio(move || async move {
-                let time_range: Vec<_> = op_record
+                let time_range: Vec<_> = args
                     .time_range
                     .split_whitespace()
                     .map(|s| DateTime::parse_rfc3339_str(s).unwrap())
                     .collect();
                 let start = time_range[0];
                 let end = time_range[1];
-                if op_record.force {
-                    mongobar::Mongobar::new(&op_record.target)
+                if args.force {
+                    mongobar::Mongobar::new(&args.target)
                         .clean()
-                        .op_record((start, end))
+                        .op_pull((start, end))
                         .await?;
                 } else {
-                    mongobar::Mongobar::new(&op_record.target)
+                    mongobar::Mongobar::new(&args.target)
                         .init()
-                        .op_record((start, end))
+                        .op_pull((start, end))
                         .await?;
                 }
 
-                println!(
-                    "OPRecord done output to `./runtime/{}/*`.",
-                    op_record.target
-                );
+                println!("OPRecord done output to `./runtime/{}/*`.", args.target);
 
                 Ok(())
             });

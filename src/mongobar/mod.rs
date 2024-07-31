@@ -205,10 +205,7 @@ impl Mongobar {
     /// 4. 【程序】读取 oplog.rs 中的数据，找到对应的操作
     /// 5. 【程序】读取 db.system.profile 中的数据，找到对应的操作
     /// 6. 【程序】处理两个数据，并且按时间排序，最终生成可以执行的逻辑，生成文件
-    pub async fn op_record(
-        &mut self,
-        time_range: (DateTime, DateTime),
-    ) -> Result<(), anyhow::Error> {
+    pub async fn op_pull(&mut self, time_range: (DateTime, DateTime)) -> Result<(), anyhow::Error> {
         if self.op_state.record_end_ts > 0 {
             panic!("[OPRecord] 已经录制过了，不能重复录制，请先调用 clean 清理数据");
         }

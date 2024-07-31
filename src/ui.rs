@@ -868,7 +868,7 @@ fn render_log(f: &mut Frame, area: Rect, app: &App) {
     let mut text = vec![
         Line::from("> OPStress Bootstrapping"),
         Line::from(format!(
-            "> Thread: {}/({}+{}) cc({}<{}) latency({}/s)",
+            "> Thread: {}/({}+{}) cc({}<{}) latency({}s)",
             boot_worker,
             thread_count,
             dyn_threads,
