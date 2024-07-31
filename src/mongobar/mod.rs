@@ -768,11 +768,32 @@ impl Mongobar {
                             op_row::Op::Delete => {
                                 if let OpRunMode::ReadWrite = op_run_mode {
                                     let db = client.database(&row.db);
-                                    let deletes =
-                                        row.cmd.get("deletes").unwrap().as_array().unwrap();
                                     let start = Instant::now();
-                                    for delete in deletes.iter() {
-                                        let delete = Document::deserialize(delete.clone()).unwrap();
+
+                                    if let Some(deletes) = row.cmd.get("deletes") {
+                                        let deletes = deletes.as_array().unwrap();
+                                        for delete in deletes.iter() {
+                                            let delete =
+                                                Document::deserialize(delete.clone()).unwrap();
+                                            let q = delete.get_document("q");
+                                            if let Ok(q) = q {
+                                                let limit = delete.get_i64("limit").unwrap_or(0);
+                                                let res = db
+                                                    .collection::<Document>(&row.coll)
+                                                    .delete_many(q.clone())
+                                                    .await;
+                                                if let Err(e) = &res {
+                                                    logs.push(format!(
+                                                        "OPExec [{}] [{}] Delete Err {}",
+                                                        chrono::Local::now().timestamp(),
+                                                        row.id,
+                                                        e
+                                                    ));
+                                                }
+                                            }
+                                        }
+                                    } else if let Some(_) = row.cmd.get("q") {
+                                        let delete = Document::deserialize(&row.cmd).unwrap();
                                         let q = delete.get_document("q");
                                         if let Ok(q) = q {
                                             let limit = delete.get_i64("limit").unwrap_or(0);
@@ -790,6 +811,7 @@ impl Mongobar {
                                             }
                                         }
                                     }
+
                                     let end = start.elapsed();
                                     cost_ms.add(end.as_millis() as usize);
                                     query_count.increment();
