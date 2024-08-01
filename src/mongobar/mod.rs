@@ -51,6 +51,7 @@ pub(crate) struct Mongobar {
 
     pub(crate) indicator: Indicator,
     pub(crate) signal: Arc<crate::signal::Signal>,
+    pub(crate) ignore_field: Vec<String>,
 }
 
 impl Mongobar {
@@ -76,6 +77,7 @@ impl Mongobar {
             indicator: Indicator::new(),
 
             signal: Arc::new(crate::signal::Signal::new()),
+            ignore_field: vec![],
         }
     }
 
@@ -108,6 +110,11 @@ impl Mongobar {
 
     pub fn set_signal(mut self, signal: Arc<crate::signal::Signal>) -> Self {
         self.signal = signal;
+        self
+    }
+
+    pub fn set_ignore_field(mut self, ignore_field: Vec<String>) -> Self {
+        self.ignore_field = ignore_field;
         self
     }
 
@@ -456,7 +463,9 @@ impl Mongobar {
             .unwrap()
             .set(thread_count as usize);
         let mut client_pool = ClientPool::new(&self.config.uri, thread_count * 100);
-        let op_logs = Arc::new(op_logs::OpLogs::new(exec_file, mode.clone()).init());
+        let op_logs = Arc::new(
+            op_logs::OpLogs::new(exec_file, mode.clone(), self.ignore_field.clone()).init(),
+        );
 
         let mut created_thread_count = 0;
         loop {
@@ -937,8 +946,12 @@ impl Mongobar {
     pub async fn op_revert(&self) -> Result<(), anyhow::Error> {
         let client = Client::with_uri_str(self.config.uri.clone()).await?;
 
-        let op_logs =
-            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init();
+        let op_logs = op_logs::OpLogs::new(
+            self.op_file_oplogs.clone(),
+            OpReadMode::StreamLine,
+            self.ignore_field.clone(),
+        )
+        .init();
 
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
@@ -1141,8 +1154,12 @@ impl Mongobar {
         //     .await?;
         let client: Client = Client::with_uri_str(self.config.uri.clone()).await?;
 
-        let op_logs =
-            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init();
+        let op_logs = op_logs::OpLogs::new(
+            self.op_file_oplogs.clone(),
+            OpReadMode::StreamLine,
+            self.ignore_field.clone(),
+        )
+        .init();
 
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
@@ -1444,7 +1461,12 @@ impl Mongobar {
         let client = Arc::new(Client::with_uri_str(self.config.uri.clone()).await?);
 
         let op_logs = Arc::new(
-            op_logs::OpLogs::new(self.op_file_oplogs.clone(), OpReadMode::StreamLine).init(),
+            op_logs::OpLogs::new(
+                self.op_file_oplogs.clone(),
+                OpReadMode::StreamLine,
+                self.ignore_field.clone(),
+            )
+            .init(),
         );
         let mut tasks = vec![];
 

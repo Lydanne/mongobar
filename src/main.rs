@@ -89,6 +89,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 print_indicator(&indic);
                 let m = mongobar::Mongobar::new(&op_stress.target)
                     .set_indicator(indic)
+                    .set_ignore_field(op_stress.ignore_field)
                     .merge_config_uri(op_stress.uri)
                     .merge_config_loop_count(op_stress.loop_count)
                     .merge_config_thread_count(op_stress.thread_count)

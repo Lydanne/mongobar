@@ -304,6 +304,7 @@ fn run_app<B: Backend>(
                             app.oplogs = op_logs::OpLogs::new(
                                 r.op_file_oplogs.clone(),
                                 op_logs::OpReadMode::FullLine(app.ui.filter.clone()),
+                                Vec::new(),
                             )
                             .limit(0, 100)
                             .to_vec();
@@ -370,6 +371,7 @@ fn run_app<B: Backend>(
                                     Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .set_ignore_field(ui.ignore_field.clone())
                                         .merge_config_loop_count(ui.loop_count.clone())
                                         .merge_config_thread_count(ui.thread_count.clone())
                                         .merge_config_rebuild(ui.rebuild.clone())
@@ -487,6 +489,7 @@ fn run_app<B: Backend>(
                                     Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .set_ignore_field(ui.ignore_field.clone())
                                         .merge_config_loop_count(ui.loop_count.clone())
                                         .merge_config_thread_count(ui.thread_count.clone())
                                         .merge_config_rebuild(ui.rebuild.clone())
@@ -601,6 +604,7 @@ fn run_app<B: Backend>(
                                     Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
+                                        .set_ignore_field(ui.ignore_field.clone())
                                         .merge_config_loop_count(ui.loop_count.clone())
                                         .merge_config_thread_count(ui.thread_count.clone())
                                         .merge_config_rebuild(ui.rebuild.clone())

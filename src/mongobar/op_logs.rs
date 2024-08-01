@@ -35,10 +35,11 @@ pub struct OpLogs {
     pub mode: OpReadMode,
     pub buf_reader: Option<Mutex<BufReader<File>>>,
     pub lock: Arc<Mutex<()>>,
+    pub ignore_field: Vec<String>,
 }
 
 impl OpLogs {
-    pub fn new(op_file: PathBuf, mode: OpReadMode) -> Self {
+    pub fn new(op_file: PathBuf, mode: OpReadMode, ignore_field: Vec<String>) -> Self {
         Self {
             op_file: op_file.clone(),
             length: count_lines(op_file.to_str().unwrap()),
@@ -59,6 +60,7 @@ impl OpLogs {
                 None
             },
             mode,
+            ignore_field,
         }
     }
 
@@ -111,7 +113,7 @@ impl OpLogs {
                     // writeln!(file, "[{}]{}", line.len(), line).unwrap();
                     serde_json::from_str(&line).expect(&line)
                 })
-                .map(|item| trans_value_to_doc(item))
+                .map(|item| trans_value_to_doc(item, &self.ignore_field))
                 .collect();
         let len = buffer.len();
 
@@ -135,7 +137,7 @@ impl OpLogs {
                 return true;
             })
             .map(|line| serde_json::from_str(&line).unwrap())
-            .map(|item| trans_value_to_doc(item))
+            .map(|item| trans_value_to_doc(item, &self.ignore_field))
             .collect();
         self.full_buffer = buffer;
         self.length = self.full_buffer.len();
@@ -252,7 +254,7 @@ impl OpLogs {
                     return Some(OpRow::default());
                 } else {
                     let row: OpRow = serde_json::from_str(&buffer).unwrap();
-                    return Some(trans_value_to_doc(row));
+                    return Some(trans_value_to_doc(row, &self.ignore_field));
                 }
             }
         }
@@ -355,7 +357,7 @@ pub fn reverse_file(file_path: &str) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn trans_value_to_doc(mut item: OpRow) -> OpRow {
+pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
     match &item.op {
         op_row::Op::Find | op_row::Op::Count => {
             if let Value::Object(ref mut cmd) = item.cmd {
@@ -369,6 +371,21 @@ pub fn trans_value_to_doc(mut item: OpRow) -> OpRow {
             let cmd: Document = Document::deserialize(&item.cmd)
                 .expect(format!("Id[{}] cmd deserialize error", item.id).as_str());
             item.args = cmd;
+        }
+        op_row::Op::Insert => {
+            let documents = item
+                .cmd
+                .get_mut("documents")
+                .unwrap()
+                .as_array_mut()
+                .unwrap();
+
+            for doc in documents.iter_mut() {
+                let doc = doc.as_object_mut().unwrap();
+                for field in ignore_field.iter() {
+                    doc.remove(field);
+                }
+            }
         }
         _ => {}
     }

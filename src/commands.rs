@@ -97,6 +97,10 @@ pub struct OPStress {
     /// 只运行读操作
     #[clap(long)]
     pub readonly: bool,
+
+    /// 插入的时候去除某个字段
+    #[clap(short, long)]
+    pub ignore_field: Vec<String>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -166,6 +170,10 @@ pub struct UI {
     /// 只运行读操作
     #[clap(long)]
     pub readonly: bool,
+
+    /// 插入的时候去除某个字段
+    #[clap(short, long)]
+    pub ignore_field: Vec<String>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
