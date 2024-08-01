@@ -221,9 +221,13 @@ impl OpLogs {
                 return row.cloned();
             }
             OpReadMode::FullLine(_) => {
-                if row_index < self.length {
-                    return Some(self.full_buffer[row_index].clone());
+                let index = self.index.load(std::sync::atomic::Ordering::SeqCst);
+
+                if index < self.length {
+                    self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    return Some(self.full_buffer[index].clone());
                 } else {
+                    self.index.store(0, std::sync::atomic::Ordering::SeqCst);
                     return None;
                 }
             }
