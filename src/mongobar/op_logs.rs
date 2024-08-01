@@ -98,7 +98,7 @@ impl OpLogs {
         let buffer: Vec<OpRow> =
             read_file_part_pro(self.op_file.to_str().unwrap(), byte_offset, BUFF_SIZE)
                 .iter()
-                .filter(|line| !line.starts_with("#"))
+                .filter(|line| !line.starts_with("#") && !line.trim().is_empty())
                 .map(|line: &String| {
                     byte_size += line.len() + 1;
                     // append file
@@ -126,7 +126,7 @@ impl OpLogs {
     pub fn load_full_line(&mut self, filter: Option<String>) {
         let buffer: Vec<OpRow> = read_file_part(self.op_file.to_str().unwrap(), 0, self.length)
             .iter()
-            .filter(|line| !line.starts_with("#"))
+            .filter(|line| !line.starts_with("#") && !line.trim().is_empty())
             .filter(|line| {
                 if let Some(filter) = &filter {
                     let filter = Regex::new(filter).unwrap();
@@ -248,7 +248,7 @@ impl OpLogs {
                 } else {
                     return None;
                 }
-                if buffer.starts_with("#") {
+                if buffer.starts_with("#") || buffer.trim().is_empty() {
                     return Some(OpRow::default());
                 } else {
                     let row: OpRow = serde_json::from_str(&buffer).unwrap();
