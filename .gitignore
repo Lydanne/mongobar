@@ -12,3 +12,4 @@ tmp
 ig.*
 result.csv
 oplogs.op
+*.op
