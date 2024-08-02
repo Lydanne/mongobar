@@ -1630,6 +1630,28 @@ impl Mongobar {
         Ok(())
     }
 
+    pub fn save_as(&self, outdir: &String, force: bool) -> Result<String, anyhow::Error> {
+        let outfile = PathBuf::from(outdir).join(self.name.clone() + ".op");
+
+        if force {
+            let _ = fs::remove_file(&outfile);
+        }
+
+        if outfile.exists() {
+            return Err(anyhow::anyhow!(
+                "file {} already exists, use --force to overwrite",
+                outfile.to_str().unwrap()
+            ));
+        }
+
+        std::fs::copy(
+            self.op_file_oplogs.to_str().unwrap(),
+            outfile.to_str().unwrap(),
+        )?;
+
+        return Ok(outfile.to_str().unwrap().to_string());
+    }
+
     fn fork(&self, indic: Indicator) -> Self {
         self.clone().set_indicator(indic).init()
     }

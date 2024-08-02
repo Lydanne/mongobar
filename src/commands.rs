@@ -35,6 +35,8 @@ pub enum Commands {
     /// export oplogs to local
     OPImport(OPImport),
 
+    SaveAs(SaveAs),
+
     /// 分析阿里云的审计日志
     Ana(Analyzer),
 
@@ -136,6 +138,19 @@ pub struct OPImport {
     /// 强制重新构建恢复恢复 oplogs
     #[clap(short, long)]
     pub rebuild: Option<bool>,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct SaveAs {
+    /// eg: qxg
+    pub target: String,
+
+    /// 保存到某个目录
+    pub outdir: String,
+
+    /// 如果文件存在强制保存
+    #[clap(short, long)]
+    pub force: bool,
 }
 
 #[derive(clap::Parser, Debug, Clone)]

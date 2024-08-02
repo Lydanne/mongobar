@@ -174,6 +174,10 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Cov(args) => {
             convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default()).unwrap();
         }
+        Commands::SaveAs(args) => {
+            let m = mongobar::Mongobar::new(&args.target);
+            m.save_as(&args.outdir, args.force).unwrap();
+        }
     }
 
     Ok(())
