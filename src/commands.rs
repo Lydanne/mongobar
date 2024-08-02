@@ -3,7 +3,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[clap(
     name = "mongobar",
-    version = "0.0.1",
+    version = "0.1.2",
     author = "@xgj/wmc",
     about = "mongo bar cli tool"
 )]
@@ -14,27 +14,28 @@ pub struct Cli {
 
 #[derive(Parser)]
 pub enum Commands {
-    /// record mongo profile by time range
+    /// 录制 mongo profile 并生成测试的 oplogs
     OPRecord(OPRecord),
 
-    /// record mongo profile by time range
+    /// 从 mongo 中拉取 oplogs
     OPPull(OPPull),
 
-    /// stress test OPRecord find operation
+    /// 压力测试，对数据进行无序的压力测试
     OPStress(OPStress),
 
-    /// stress test OPRecord find operation
+    /// 压力回放，对数据库进行压力的回放测试，有一定的顺序执行
     OPReplay(OPReplay),
 
-    /// stress test OPRecord find operation
+    /// 压力回放前进行状态重置
     OPRevert(OPReplay),
 
-    /// export oplogs to local
+    /// 导出相关的数据到 op 文件内
     OPExport(OPReplay),
 
-    /// export oplogs to local
+    /// 将上门的导出的 op 文件导出到数据指定的数据库
     OPImport(OPImport),
 
+    /// 另存为压力测试的 op 文件
     SaveAs(SaveAs),
 
     /// 分析阿里云的审计日志
@@ -43,7 +44,7 @@ pub enum Commands {
     /// 转换阿里云的审计日志为压测 oplogs.op
     Cov(Convert),
 
-    /// start a tui.
+    /// 启动 UI 进行压力测试
     UI(UI),
 }
 
