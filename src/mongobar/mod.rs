@@ -1256,7 +1256,7 @@ impl Mongobar {
                     let cmd = op_row.cmd.clone();
                     let qs: Vec<Document> = cmd
                         .get("updates")
-                        .unwrap()
+                        .unwrap_or(&Value::Array(vec![cmd.clone()]))
                         .as_array()
                         .unwrap()
                         .iter()

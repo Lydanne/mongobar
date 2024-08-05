@@ -281,6 +281,7 @@ fn run_app<B: Backend>(
                                 vec![
                                     Route::new(RouteType::Push, "Revert", "Revert"),
                                     Route::new(RouteType::Push, "Start", "Start"),
+                                    Route::new(RouteType::Push, "Resume", "Resume"),
                                     Route::new(RouteType::Pop, "Back", "Back"),
                                 ],
                                 0,
@@ -628,6 +629,54 @@ fn run_app<B: Backend>(
                                     .push(format!("Run {}/{} op done.", query_count, progress));
                             });
                         }
+                        "/Replay/Resume" => {
+                            app.router.push(
+                                vec![Route::new(RouteType::Push, "Stop", "Stop")
+                                    .with_span(Span::default().fg(Color::Red))],
+                                0,
+                            );
+
+                            app.update_start_at();
+                            app.reset();
+
+                            let target = app.ui.target.clone();
+                            let filter = app.ui.filter.clone();
+                            let indicator = app.indicator.clone();
+                            let inner_indicator = app.indicator.clone();
+                            let signal = app.signal.clone();
+                            let ui = app.ui.clone();
+
+                            inner_indicator.reset();
+
+                            thread::spawn(move || {
+                                let inner_signal = signal.clone();
+
+                                exec_tokio(move || async move {
+                                    Mongobar::new(&target)
+                                        .set_signal(signal)
+                                        .set_indicator(indicator)
+                                        .set_ignore_field(ui.ignore_field.clone())
+                                        .merge_config_loop_count(ui.loop_count.clone())
+                                        .merge_config_thread_count(ui.thread_count.clone())
+                                        .merge_config_rebuild(ui.rebuild.clone())
+                                        .merge_config_uri(ui.uri.clone())
+                                        .init()
+                                        .op_run_resume()
+                                        .await?;
+
+                                    Ok(())
+                                });
+                                inner_signal.set(2);
+                                let query_count: usize =
+                                    inner_indicator.take("query_count").unwrap().get();
+                                let progress: usize =
+                                    inner_indicator.take("progress").unwrap().get();
+                                inner_indicator
+                                    .take("logs")
+                                    .unwrap()
+                                    .push(format!("Run {}/{} op done.", query_count, progress));
+                            });
+                        }
                         "/Replay/Revert/Stop" => {
                             app.signal.set(1);
                             app.router.pop();
@@ -674,6 +723,9 @@ fn ui(frame: &mut Frame, app: &App) {
         app.update_current_at();
         render_stress_view(frame, area, app);
     } else if cp.starts_with("/Replay/Revert") {
+        app.update_current_at();
+        render_stress_view(frame, area, app);
+    } else if cp.starts_with("/Replay/Resume") {
         app.update_current_at();
         render_stress_view(frame, area, app);
     } else if cp.starts_with("/Replay/OpLog") {
