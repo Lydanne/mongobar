@@ -251,5 +251,5 @@ pub struct RegFilter {
 
     /// 正则字符串
     #[clap(short, long)]
-    pub filter: Option<String>,
+    pub filter: String,
 }

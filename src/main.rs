@@ -174,7 +174,11 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 tool::convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default())
                     .unwrap();
             }
-            Tool::Reg(_) => todo!(),
+            Tool::Reg(args) => {
+                let n =
+                    tool::reg_filter::reg_filter_line(&args.target, &args.outfile, &args.filter);
+                println!("Filter {} lines.", n);
+            }
         },
         Commands::SaveAs(args) => {
             let m = mongobar::Mongobar::new(&args.target);
