@@ -29,6 +29,9 @@ pub enum Commands {
     /// 压力回放前进行状态重置
     OPRevert(OPReplay),
 
+    /// 压测完成后恢复命令
+    OPResume(OPReplay),
+
     /// 导出相关的数据到 op 文件内
     OPExport(OPReplay),
 

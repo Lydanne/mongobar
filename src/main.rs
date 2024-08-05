@@ -137,6 +137,23 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
+        Commands::OPResume(mut args) => {
+            target_parse(&mut args.target, args.update);
+            exec_tokio(move || async move {
+                let indic = indicator::Indicator::new().init(ind_keys(), args.target.clone());
+                print_indicator(&indic);
+                let m = mongobar::Mongobar::new(&args.target)
+                    .set_indicator(indic)
+                    .merge_config_rebuild(args.rebuild)
+                    .merge_config_uri(args.uri)
+                    .init();
+                println!("OPResume [{}] Start.", chrono::Local::now().timestamp());
+                m.op_run_resume().await?;
+                println!("OPResume [{}] Done", chrono::Local::now().timestamp());
+
+                Ok(())
+            });
+        }
         Commands::UI(mut ui) => {
             target_parse(&mut ui.target, ui.update);
             let _ = ui::boot(ui);
