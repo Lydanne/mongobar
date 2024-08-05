@@ -1,4 +1,5 @@
 use std::{
+    fmt::format,
     fs::{self},
     path::PathBuf,
     sync::Arc,
@@ -456,6 +457,7 @@ impl Mongobar {
         let progress = self.indicator.take("progress").unwrap();
         let progress_total = self.indicator.take("progress_total").unwrap();
         let logs = self.indicator.take("logs").unwrap();
+        let query_stats = self.indicator.take("query_stats").unwrap();
         let signal = Arc::clone(&self.signal);
 
         self.indicator
@@ -495,7 +497,7 @@ impl Mongobar {
             let cost_ms = cost_ms.clone();
             let boot_worker = boot_worker.clone();
             let logs = logs.clone();
-            let client = client_pool.get().await?;
+            let query_stats = query_stats.clone();
             let signal = Arc::clone(&signal);
             let done_worker = done_worker.clone();
             let dyn_cc_limit = dyn_cc_limit.clone();
@@ -504,6 +506,7 @@ impl Mongobar {
             let thread_count_num = thread_count;
             let mode = mode.clone();
             let op_run_mode = op_run_mode.clone();
+            let client = client_pool.get().await?;
 
             handles.push(tokio::spawn(async move {
                 // println!("Thread[{}] [{}]\twait", i, chrono::Local::now().timestamp());
@@ -548,6 +551,7 @@ impl Mongobar {
                         // }
                         progress.increment();
                         querying.increment();
+                        let query_start = Instant::now();
                         match &row.op {
                             op_row::Op::Find | &op_row::Op::Command => {
                                 let db = client.database(&row.db);
@@ -852,6 +856,7 @@ impl Mongobar {
                             op_row::Op::None => (),
                         }
 
+                        query_stats.map_add(&row.key, query_start.elapsed().as_millis() as usize);
                         querying.decrement();
                         row_index += 1;
                     }
@@ -991,6 +996,7 @@ impl Mongobar {
                         coll: op_row.coll.clone(),
                         cmd: re_cmd,
                         args: doc! {},
+                        key: String::new(),
                     };
                     OpLogs::push_line(self.op_file_revert.clone(), re_row);
                 }
@@ -1213,6 +1219,7 @@ impl Mongobar {
                                     ],
                                 }),
                                 args: doc! {},
+                                key: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1236,6 +1243,7 @@ impl Mongobar {
                                     ],
                                 }),
                                 args: doc! {},
+                                key: String::new(),
                             };
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
                         }
@@ -1286,6 +1294,7 @@ impl Mongobar {
                                     ],
                                 }),
                                 args: doc! {},
+                                key: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1337,6 +1346,7 @@ impl Mongobar {
                                     ],
                                 }),
                                 args: doc! {},
+                                key: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1529,6 +1539,7 @@ impl Mongobar {
                                                 "documents": [doc]
                                             }),
                                             args: doc! {},
+                                            key: String::new(),
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);
@@ -1580,6 +1591,7 @@ impl Mongobar {
                                                 "documents": [doc]
                                             }),
                                             args: doc! {},
+                                            key: String::new(),
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);
@@ -1654,6 +1666,39 @@ impl Mongobar {
 
     fn fork(&self, indic: Indicator) -> Self {
         self.clone().set_indicator(indic).init()
+    }
+
+    pub fn report(&self) -> Result<PathBuf, anyhow::Error> {
+        let m = self.indicator.take("query_stats").unwrap();
+        let csv_file = self.op_workdir.join("query_stats.csv");
+        if csv_file.exists() {
+            let _ = fs::remove_file(&csv_file);
+        }
+        let mut wtr = csv::Writer::from_path(&csv_file).unwrap();
+        wtr.write_record(&["Key", "AvgCost(ms)", "MidCost(ms)", "Count"])
+            .unwrap();
+        for k in m.map_keys().iter() {
+            let v = m.map_get(k).unwrap();
+            wtr.write_record(&[
+                k,
+                &format!(
+                    "{:.2}",
+                    v.sum.load(std::sync::atomic::Ordering::Relaxed) as f64
+                        / v.count.load(std::sync::atomic::Ordering::Relaxed) as f64,
+                ),
+                &format!("{:.2}", v.middle.median()),
+                &format!("{}", v.count.load(std::sync::atomic::Ordering::Relaxed)),
+            ])
+            .unwrap();
+        }
+
+        wtr.flush().unwrap();
+
+        self.indicator
+            .take("logs")
+            .unwrap()
+            .push(format!("Build Report {:?}.", csv_file.to_str().unwrap()));
+        Ok(csv_file)
     }
 }
 

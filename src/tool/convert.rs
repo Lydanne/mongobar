@@ -37,6 +37,7 @@ pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<PathBuf, 
             cmd: cmd.get("args").unwrap().to_owned(),
             ts: record.time as i64,
             args: doc! {},
+            key: String::new(),
         };
         // println!("{}", serde_json::to_string(&op_row).unwrap());
         // println!("{:?}", record);

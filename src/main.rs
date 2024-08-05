@@ -23,6 +23,7 @@ pub fn ind_keys() -> Vec<String> {
         "cost_ms".to_string(),
         "progress".to_string(),
         "logs".to_string(),
+        "query_stats".to_string(),
         "progress_total".to_string(),
         "thread_count".to_string(),
         "done_worker".to_string(),
@@ -94,6 +95,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .init();
                 println!("OPStress [{}] Start.", chrono::Local::now().timestamp());
                 m.op_stress(op_stress.filter, op_stress.readonly).await?;
+                let _ = m.report()?;
                 println!("OPStress [{}] Done", chrono::Local::now().timestamp());
 
                 Ok(())
@@ -112,6 +114,7 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                     .init();
                 println!("OPReplay [{}] Start.", chrono::Local::now().timestamp());
                 m.op_replay().await?;
+                let _ = m.report()?;
                 println!("OPReplay [{}] Done", chrono::Local::now().timestamp());
 
                 Ok(())

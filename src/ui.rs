@@ -368,7 +368,7 @@ fn run_app<B: Backend>(
                                 let cur = Instant::now();
 
                                 exec_tokio(move || async move {
-                                    Mongobar::new(&target)
+                                    let m = Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
                                         .set_ignore_field(ui.ignore_field.clone())
@@ -376,9 +376,10 @@ fn run_app<B: Backend>(
                                         .merge_config_thread_count(ui.thread_count.clone())
                                         .merge_config_rebuild(ui.rebuild.clone())
                                         .merge_config_uri(ui.uri.clone())
-                                        .init()
-                                        .op_stress(filter, ui.readonly)
-                                        .await?;
+                                        .init();
+                                    m.op_stress(filter, ui.readonly).await?;
+
+                                    let _ = m.report()?;
 
                                     Ok(())
                                 });
@@ -486,7 +487,7 @@ fn run_app<B: Backend>(
                                 let inner_signal = signal.clone();
 
                                 exec_tokio(move || async move {
-                                    Mongobar::new(&target)
+                                    let m = Mongobar::new(&target)
                                         .set_signal(signal)
                                         .set_indicator(indicator)
                                         .set_ignore_field(ui.ignore_field.clone())
@@ -494,9 +495,10 @@ fn run_app<B: Backend>(
                                         .merge_config_thread_count(ui.thread_count.clone())
                                         .merge_config_rebuild(ui.rebuild.clone())
                                         .merge_config_uri(ui.uri.clone())
-                                        .init()
-                                        .op_replay()
-                                        .await?;
+                                        .init();
+                                    m.op_replay().await?;
+                                    let _ = m.report()?;
+
                                     Ok(())
                                 });
 

@@ -367,7 +367,7 @@ pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
                 cmd.remove("cursor");
                 cmd.remove("cursorId");
             }
-            // println!("after cmd {:?}", cmd);
+            // println!("after cmd {:?}", item.key);
             let cmd: Document = Document::deserialize(&item.cmd)
                 .expect(format!("Id[{}] cmd deserialize error", item.id).as_str());
             item.args = cmd;
@@ -389,6 +389,8 @@ pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
         }
         _ => {}
     }
+
+    item.key = item.build_key();
 
     item
 }

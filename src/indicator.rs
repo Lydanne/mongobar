@@ -1,5 +1,7 @@
+use hashbrown::HashMap;
 use std::{
-    collections::HashMap,
+    cmp::Reverse,
+    collections::BinaryHeap,
     fs::File,
     io::{BufWriter, Write},
     path::PathBuf,
@@ -11,6 +13,7 @@ use std::{
 pub struct Metric {
     number: AtomicUsize,
     logs: Mutex<Vec<String>>,
+    map_count: Mutex<HashMap<String, Count>>,
     print_file: Mutex<Option<BufWriter<File>>>,
     print_file_path: Option<PathBuf>,
     ordering: std::sync::atomic::Ordering,
@@ -27,6 +30,7 @@ impl Metric {
         Self {
             number: AtomicUsize::new(0),
             logs: Mutex::new(Vec::new()),
+            map_count: Mutex::new(HashMap::new()),
             ordering,
             print_file: Mutex::new(None),
             print_file_path: None,
@@ -94,6 +98,56 @@ impl Metric {
     pub fn logs(&self) -> Vec<String> {
         self.logs.lock().unwrap().clone()
     }
+
+    pub fn map_add(&self, key: &str, value: usize) {
+        let mut map_count = self.map_count.lock().unwrap();
+        if let Some(v) = map_count.get_mut(key) {
+            v.count.fetch_add(1, self.ordering);
+            v.sum.fetch_add(value, self.ordering);
+            v.middle.add(value);
+        } else {
+            map_count.insert(
+                key.to_string(),
+                Count {
+                    count: AtomicUsize::new(1),
+                    sum: AtomicUsize::new(value),
+                    middle: StreamingMedian::new(),
+                },
+            );
+        }
+    }
+
+    pub fn map_set(&self, key: &str, value: Count) {
+        let mut map_count = self.map_count.lock().unwrap();
+        map_count.insert(key.to_string(), value);
+    }
+
+    pub fn map_get(&self, key: &str) -> Option<Count> {
+        let map_count = self.map_count.lock().unwrap();
+        map_count.get(key).cloned()
+    }
+
+    pub fn map_keys(&self) -> Vec<String> {
+        let map_count = self.map_count.lock().unwrap();
+        map_count.keys().cloned().collect()
+    }
+}
+
+#[derive(Debug)]
+pub struct Count {
+    pub count: AtomicUsize,
+    pub sum: AtomicUsize,
+    pub middle: StreamingMedian,
+}
+
+impl Clone for Count {
+    fn clone(&self) -> Self {
+        Self {
+            count: AtomicUsize::new(self.count.load(std::sync::atomic::Ordering::Relaxed)),
+            sum: AtomicUsize::new(self.sum.load(std::sync::atomic::Ordering::Relaxed)),
+            middle: self.middle.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -142,6 +196,46 @@ impl Indicator {
         for (_, v) in self.metric.iter() {
             v.set(0);
             v.consumers();
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct StreamingMedian {
+    lower_half: BinaryHeap<usize>,          // 大顶堆
+    upper_half: BinaryHeap<Reverse<usize>>, // 小顶堆
+}
+
+impl StreamingMedian {
+    fn new() -> Self {
+        Self {
+            lower_half: BinaryHeap::new(),
+            upper_half: BinaryHeap::new(),
+        }
+    }
+
+    fn add(&mut self, value: usize) {
+        if self.lower_half.len() == 0 || value <= *self.lower_half.peek().unwrap() {
+            self.lower_half.push(value);
+        } else {
+            self.upper_half.push(Reverse(value));
+        }
+
+        // 平衡两个堆的大小
+        if self.lower_half.len() > self.upper_half.len() + 1 {
+            let max_of_lower = self.lower_half.pop().unwrap();
+            self.upper_half.push(Reverse(max_of_lower));
+        } else if self.upper_half.len() > self.lower_half.len() {
+            let min_of_upper = self.upper_half.pop().unwrap().0;
+            self.lower_half.push(min_of_upper);
+        }
+    }
+
+    pub fn median(&self) -> usize {
+        if self.lower_half.len() > self.upper_half.len() {
+            *self.lower_half.peek().unwrap()
+        } else {
+            (*self.lower_half.peek().unwrap() + self.upper_half.peek().unwrap().0) / 2
         }
     }
 }
@@ -227,4 +321,25 @@ pub fn print_indicator(indicator: &Indicator) {
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_streaming_median() {
+        let mut sm = StreamingMedian::new();
+        sm.add(1);
+        sm.add(2);
+        sm.add(3);
+        sm.add(4);
+        sm.add(5);
+        sm.add(6);
+        sm.add(7);
+        sm.add(8);
+        sm.add(9);
+        sm.add(10);
+        assert_eq!(sm.median(), 5);
+    }
 }
