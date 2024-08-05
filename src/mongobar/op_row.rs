@@ -1,5 +1,6 @@
 use mongodb::bson::Document;
 
+use rayon::vec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -22,24 +23,41 @@ pub(crate) struct OpRow {
 
 impl OpRow {
     pub fn build_key(&self) -> String {
-        let mut keys = match self.op {
-            Op::Find => deep_build_key(&self.cmd.get("filter").unwrap_or(&Value::Null)),
+        let keys = match self.op {
+            Op::Find => {
+                let mut keys = deep_build_key(&self.cmd.get("filter").unwrap_or(&Value::Null));
+                keys.sort();
+                keys
+            }
             Op::Update => {
                 if let Some(updates) = self.cmd.get("updates") {
                     let mut keys = vec![];
+                    let mut ukeys = vec![];
                     for update in updates.as_array().unwrap() {
                         keys.append(&mut deep_build_key(&update.get("q").unwrap()));
+                        ukeys.append(&mut deep_build_key(&update.get("u").unwrap()));
                     }
+                    keys.sort();
+                    ukeys.sort();
+                    ukeys.dedup();
+                    keys.push(ukeys.join(":"));
                     keys
                 } else if let Some(filter) = self.cmd.get("q") {
-                    deep_build_key(filter)
+                    let mut keys = deep_build_key(filter);
+                    keys.sort();
+                    keys
                 } else {
-                    deep_build_key(&self.cmd)
+                    let mut keys = deep_build_key(&self.cmd);
+                    keys.sort();
+                    keys
                 }
             }
-            _ => deep_build_key(&self.cmd),
+            _ => {
+                let mut keys = deep_build_key(&self.cmd);
+                keys.sort();
+                keys
+            }
         };
-        keys.sort();
         format!("{}:{:?}:{}", self.coll, self.op, keys.join(":"))
     }
 }
@@ -50,7 +68,7 @@ fn deep_build_key(v: &Value) -> Vec<String> {
         Value::Object(o) => {
             let mut keys = vec![];
             for (k, v) in o.iter() {
-                keys.push(k.clone());
+                keys.push(replace_number(k));
                 keys.append(&mut deep_build_key(v));
             }
             keys
@@ -64,6 +82,13 @@ fn deep_build_key(v: &Value) -> Vec<String> {
         }
         _ => vec![],
     }
+}
+
+static REG_NUMBER: once_cell::sync::Lazy<regex::Regex> =
+    once_cell::sync::Lazy::new(|| regex::Regex::new(r"\d+").unwrap());
+
+fn replace_number(s: &str) -> String {
+    REG_NUMBER.replace_all(s, "[n]").to_string()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
