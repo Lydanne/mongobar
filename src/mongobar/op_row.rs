@@ -40,7 +40,7 @@ impl OpRow {
             _ => deep_build_key(&self.cmd),
         };
         keys.sort();
-        format!("{}:{}", self.coll, keys.join(":"))
+        format!("{}:{:?}:{}", self.coll, self.op, keys.join(":"))
     }
 }
 

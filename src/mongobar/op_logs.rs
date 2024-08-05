@@ -233,7 +233,7 @@ impl OpLogs {
                     return None;
                 }
             }
-            OpReadMode::ReadLine(never_loop) => {
+            OpReadMode::ReadLine(never_stop) => {
                 // println!("read line");
                 let mut buf_reader = self.buf_reader.as_ref().unwrap().lock().unwrap();
                 let mut buffer = String::new();
@@ -242,7 +242,7 @@ impl OpLogs {
                     // println!("read lined {:?}", buffer);
 
                     if b == 0 {
-                        if never_loop {
+                        if never_stop {
                             buf_reader.seek(SeekFrom::Start(0)).unwrap();
                         }
                         return None;

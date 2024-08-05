@@ -1380,7 +1380,8 @@ impl Mongobar {
             self.op_file_oplogs.clone(),
             self.config.thread_count,
             1,
-            op_logs::OpReadMode::StreamLine,
+            // op_logs::OpReadMode::StreamLine,
+            op_logs::OpReadMode::ReadLine(false),
             OpRunMode::ReadWrite,
         )
         .await?;

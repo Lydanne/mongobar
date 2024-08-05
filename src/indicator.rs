@@ -233,9 +233,11 @@ impl StreamingMedian {
 
     pub fn median(&self) -> usize {
         if self.lower_half.len() > self.upper_half.len() {
-            *self.lower_half.peek().unwrap()
+            *self.lower_half.peek().unwrap_or(&0)
         } else {
-            (*self.lower_half.peek().unwrap() + self.upper_half.peek().unwrap().0) / 2
+            (*self.lower_half.peek().unwrap_or(&0)
+                + self.upper_half.peek().unwrap_or(&Reverse(0)).0)
+                / 2
         }
     }
 }
