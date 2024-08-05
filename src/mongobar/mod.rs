@@ -1168,6 +1168,13 @@ impl Mongobar {
         )
         .init();
 
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(self.op_file_resume.clone())
+            .await?;
+
         while let Some(op_row) = op_logs.read(0, 0) {
             match op_row.op {
                 op_row::Op::None => (),
@@ -1224,7 +1231,9 @@ impl Mongobar {
                                 hash: String::new(),
                             };
 
-                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                            let content = serde_json::to_string(&re_row).unwrap();
+                            file.write_all(content.as_bytes()).await?;
+                            file.write_all(b"\n").await?;
                         } else {
                             // 如果查到当前没有就删除掉
                             let re_row = op_row::OpRow {
@@ -1248,7 +1257,9 @@ impl Mongobar {
                                 key: String::new(),
                                 hash: String::new(),
                             };
-                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                            let content = serde_json::to_string(&re_row).unwrap();
+                            file.write_all(content.as_bytes()).await?;
+                            file.write_all(b"\n").await?;
                         }
                     }
                 }
@@ -1301,7 +1312,9 @@ impl Mongobar {
                                 hash: String::new(),
                             };
 
-                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                            let content = serde_json::to_string(&re_row).unwrap();
+                            file.write_all(content.as_bytes()).await?;
+                            file.write_all(b"\n").await?;
                         }
                     }
                 }
@@ -1354,14 +1367,14 @@ impl Mongobar {
                                 hash: String::new(),
                             };
 
-                            OpLogs::push_line(self.op_file_resume.clone(), re_row);
+                            let content = serde_json::to_string(&re_row).unwrap();
+                            file.write_all(content.as_bytes()).await?;
+                            file.write_all(b"\n").await?;
                         }
                     }
                 }
             }
         }
-
-        reverse_file(self.op_file_resume.to_str().unwrap()).unwrap();
 
         Ok(())
     }
