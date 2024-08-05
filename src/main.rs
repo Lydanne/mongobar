@@ -3,18 +3,16 @@ use std::{env, path::PathBuf};
 use bson::DateTime;
 use clap::{builder::Str, Parser};
 use commands::{Cli, Commands, Tool};
-use convert::convert_alilog_csv;
 use futures::Future;
 use indicator::print_indicator;
 use mongobar::Mongobar;
 use tokio::runtime::Builder;
 
-mod analyze;
 mod commands;
-mod convert;
 mod indicator;
 mod mongobar;
 mod signal;
+mod tool;
 mod ui;
 mod utils;
 
@@ -170,12 +168,13 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         }
         Commands::Tool(tool) => match tool {
             Tool::Ana(args) => {
-                analyze::analysis_alilog_csv(&args.target).unwrap();
+                tool::analyze::analysis_alilog_csv(&args.target).unwrap();
             }
             Tool::Cov(args) => {
-                convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default())
+                tool::convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default())
                     .unwrap();
             }
+            Tool::Reg(_) => todo!(),
         },
         Commands::SaveAs(args) => {
             let m = mongobar::Mongobar::new(&args.target);
@@ -215,18 +214,21 @@ fn target_parse(target: &mut String, update: Option<bool>) {
                 // 复制文件到 .mongobar/{name}/oplogs.csv
                 if m.exists() {
                     if update.unwrap_or_default() {
-                        let oplogs_path =
-                            convert_alilog_csv(path.to_str().unwrap(), m.config.db.clone()).expect(
-                                "convert_alilog_csv failed, please check the csv file format.",
-                            );
+                        let oplogs_path = tool::convert::convert_alilog_csv(
+                            path.to_str().unwrap(),
+                            m.config.db.clone(),
+                        )
+                        .expect("convert_alilog_csv failed, please check the csv file format.");
                         m.clean();
                         let _ =
                             std::fs::rename(oplogs_path, format!("./.mongobar/{}/oplogs.op", name));
                     }
                 } else {
-                    let oplogs_path =
-                        convert_alilog_csv(path.to_str().unwrap(), m.config.db.clone())
-                            .expect("convert_alilog_csv failed, please check the csv file format.");
+                    let oplogs_path = tool::convert::convert_alilog_csv(
+                        path.to_str().unwrap(),
+                        m.config.db.clone(),
+                    )
+                    .expect("convert_alilog_csv failed, please check the csv file format.");
                     m.init();
                     let _ = std::fs::rename(oplogs_path, format!("./.mongobar/{}/oplogs.op", name));
                 }

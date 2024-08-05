@@ -53,6 +53,9 @@ pub enum Tool {
 
     /// 转换阿里云的审计日志为压测 oplogs.op
     Cov(Convert),
+
+    /// 通过正则过滤文件的行
+    Reg(RegFilter),
 }
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -235,4 +238,18 @@ pub struct Convert {
     /// 是否重新构建
     #[clap(short, long)]
     pub rebuild: Option<bool>,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+
+pub struct RegFilter {
+    /// 目标文件或者是 oplogs 的目录名称
+    pub target: String,
+
+    /// 输出到文件
+    pub outfile: String,
+
+    /// 正则字符串
+    #[clap(short, long)]
+    pub filter: Option<String>,
 }

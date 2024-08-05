@@ -8,8 +8,8 @@ use std::{
 use bson::doc;
 use serde_json::Value;
 
+use crate::tool::analyze::{each_alilog_csv, watch_progress};
 use crate::{
-    analyze::{each_alilog_csv, watch_progress},
     mongobar::op_row::{Op, OpRow},
     utils::{count_lines, match_date_replace, to_sha3},
 };
