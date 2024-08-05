@@ -2,7 +2,7 @@ use std::{env, path::PathBuf};
 
 use bson::DateTime;
 use clap::{builder::Str, Parser};
-use commands::{Cli, Commands};
+use commands::{Cli, Commands, Tool};
 use convert::convert_alilog_csv;
 use futures::Future;
 use indicator::print_indicator;
@@ -168,12 +168,15 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
-        Commands::Ana(args) => {
-            analyze::analysis_alilog_csv(&args.target).unwrap();
-        }
-        Commands::Cov(args) => {
-            convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default()).unwrap();
-        }
+        Commands::Tool(tool) => match tool {
+            Tool::Ana(args) => {
+                analyze::analysis_alilog_csv(&args.target).unwrap();
+            }
+            Tool::Cov(args) => {
+                convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default())
+                    .unwrap();
+            }
+        },
         Commands::SaveAs(args) => {
             let m = mongobar::Mongobar::new(&args.target);
             m.save_as(&args.outdir, args.force).unwrap();

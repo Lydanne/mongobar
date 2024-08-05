@@ -38,14 +38,21 @@ pub enum Commands {
     /// 另存为压力测试的 op 文件
     SaveAs(SaveAs),
 
+    /// 一些高效的辅助命令，包括文件的的行正则筛选、分析阿里云的审计日志、转换阿里云的审计日志为压测 oplogs.op等
+    #[clap(subcommand)]
+    Tool(Tool),
+
+    /// 启动 UI 进行压力测试
+    UI(UI),
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub enum Tool {
     /// 分析阿里云的审计日志
     Ana(Analyzer),
 
     /// 转换阿里云的审计日志为压测 oplogs.op
     Cov(Convert),
-
-    /// 启动 UI 进行压力测试
-    UI(UI),
 }
 
 #[derive(clap::Parser, Debug, Clone)]
