@@ -40,6 +40,7 @@ impl OpRow {
                     keys.sort();
                     ukeys.sort();
                     ukeys.dedup();
+                    keys.push(">>".to_string());
                     keys.push(ukeys.join(":"));
                     keys
                 } else if let Some(filter) = self.cmd.get("q") {
