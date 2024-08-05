@@ -177,10 +177,14 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 tool::convert::convert_alilog_csv(&args.target, args.filter_db.unwrap_or_default())
                     .unwrap();
             }
-            Tool::Reg(args) => {
-                let n =
-                    tool::reg_filter::reg_filter_line(&args.target, &args.outfile, &args.filter);
-                println!("Filter {} lines.", n);
+            Tool::Filter(args) => {
+                if args.mode {
+                    let n = tool::filter::mode_filter_line(&args.target, &args.filter);
+                    println!("# Filter {} lines.", n);
+                } else {
+                    let n = tool::filter::reg_filter_line(&args.target, &args.filter);
+                    println!("# Filter {} lines.", n);
+                }
             }
         },
         Commands::SaveAs(args) => {

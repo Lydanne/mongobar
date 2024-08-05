@@ -60,6 +60,18 @@ pub fn to_sha3(s: &str) -> String {
     hex::encode(output)
 }
 
+pub fn to_sha3_8(s: &str) -> String {
+    let mut hasher = Shake128::default();
+
+    hasher.update(s.as_bytes());
+
+    let mut output = [0u8; 8];
+    hasher.finalize_xof().read(&mut output);
+
+    // 输出结果
+    hex::encode(output)
+}
+
 pub fn get_db_coll(ns: &str) -> (String, String) {
     let parts: Vec<&str> = ns.split('.').collect();
     if parts.len() == 2 {

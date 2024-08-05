@@ -4,6 +4,8 @@ use rayon::vec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::utils::to_sha3_8;
+
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub(crate) struct OpRow {
     pub id: String,
@@ -19,6 +21,9 @@ pub(crate) struct OpRow {
 
     #[serde(skip)]
     pub key: String,
+
+    #[serde(skip)]
+    pub hash: String,
 }
 
 impl OpRow {
@@ -59,7 +64,7 @@ impl OpRow {
                 keys
             }
         };
-        format!("{}:{:?}:{}", self.coll, self.op, keys.join(":"))
+        format!("{}:{:?}:{}", self.coll, self.op, to_sha3_8(&keys.join("")))
     }
 }
 

@@ -997,6 +997,7 @@ impl Mongobar {
                         cmd: re_cmd,
                         args: doc! {},
                         key: String::new(),
+                        hash: String::new(),
                     };
                     OpLogs::push_line(self.op_file_revert.clone(), re_row);
                 }
@@ -1220,6 +1221,7 @@ impl Mongobar {
                                 }),
                                 args: doc! {},
                                 key: String::new(),
+                                hash: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1244,6 +1246,7 @@ impl Mongobar {
                                 }),
                                 args: doc! {},
                                 key: String::new(),
+                                hash: String::new(),
                             };
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
                         }
@@ -1295,6 +1298,7 @@ impl Mongobar {
                                 }),
                                 args: doc! {},
                                 key: String::new(),
+                                hash: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1347,6 +1351,7 @@ impl Mongobar {
                                 }),
                                 args: doc! {},
                                 key: String::new(),
+                                hash: String::new(),
                             };
 
                             OpLogs::push_line(self.op_file_resume.clone(), re_row);
@@ -1541,6 +1546,7 @@ impl Mongobar {
                                             }),
                                             args: doc! {},
                                             key: String::new(),
+                                            hash: String::new(),
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);
@@ -1593,6 +1599,7 @@ impl Mongobar {
                                             }),
                                             args: doc! {},
                                             key: String::new(),
+                                            hash: String::new(),
                                         };
 
                                         // OpLogs::push_line(op_file_data.clone(), re_row);

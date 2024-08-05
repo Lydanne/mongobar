@@ -12,6 +12,8 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::utils::to_sha3_8;
+
 use super::op_row::{self, OpRow};
 
 static BUFF_SIZE: usize = 10000;
@@ -391,6 +393,6 @@ pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
     }
 
     item.key = item.build_key();
-
+    // item.hash = to_sha3_8(&item.key);
     item
 }

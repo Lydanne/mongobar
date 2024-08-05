@@ -55,7 +55,7 @@ pub enum Tool {
     Cov(Convert),
 
     /// 通过正则过滤文件的行
-    Reg(RegFilter),
+    Filter(Filter),
 }
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -242,14 +242,15 @@ pub struct Convert {
 
 #[derive(clap::Parser, Debug, Clone)]
 
-pub struct RegFilter {
+pub struct Filter {
     /// 目标文件或者是 oplogs 的目录名称
     pub target: String,
 
-    /// 输出到文件
-    pub outfile: String,
-
-    /// 正则字符串
-    #[clap(short, long)]
+    /// 匹配字符串，默认是通过正则匹配，如果传入 -m 则是通过模式匹配
+    #[clap(long)]
     pub filter: String,
+
+    /// 开启模式匹配
+    #[clap(short, long)]
+    pub mode: bool,
 }
