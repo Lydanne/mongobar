@@ -681,6 +681,10 @@ fn run_app<B: Backend>(
                             app.signal.set(1);
                             app.router.pop();
                         }
+                        "/Replay/Resume/Stop" => {
+                            app.signal.set(1);
+                            app.router.pop();
+                        }
                         "/Quit" => {
                             return Ok(());
                         }
