@@ -49,6 +49,8 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
 
     let total_lines = count_lines(path);
 
+    let path_buf = std::path::PathBuf::from(path);
+
     let current = watch_progress("Analysis".to_string(), total_lines);
 
     each_alilog_csv(file, |record| {
@@ -80,7 +82,10 @@ pub fn analysis_alilog_csv(path: &str) -> Result<(), anyhow::Error> {
     let map = map.lock().unwrap();
     println!("done {}", map.len());
 
-    let wtr = File::create("result.csv")?;
+    let wtr = File::create(format!(
+        "ana-{}.csv",
+        path_buf.file_stem().unwrap().to_str().unwrap()
+    ))?;
     let mut wtr = csv::Writer::from_writer(wtr);
     wtr.write_record(&["key", "count", "latency", "eg"])?;
     for (k, v) in map.iter() {
