@@ -5,7 +5,7 @@
     <img src="https://img.shields.io/github/license/WumaCoder/mongobar?style=for-the-badge" />
   </p>
   <p>
-    <a href="https://github.com/nidrs/nidrs/blob/main/readme_zh.md">English</a>
+    <a href="https://github.com/WumaCoder/mongobar/blob/master/readme-en.md">English</a>
   </p>
 </div>
 
