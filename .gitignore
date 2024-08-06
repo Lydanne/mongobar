@@ -13,3 +13,4 @@ ig.*
 result.csv
 oplogs.op
 *.op
+ana-*
