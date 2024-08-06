@@ -1149,7 +1149,7 @@ impl Router {
                 let ctab = self.current_tab();
                 let cptab = cp + "/" + ctab.name.as_str();
                 return EventType::Click(cptab, ctab.rtype, key.code);
-            } else if key.code == KeyCode::Esc || key.code == KeyCode::Backspace {
+            } else if key.code == KeyCode::Esc {
                 let cp = self.current_path();
                 let ctab = self.current_tab();
                 let cptab = cp + "/" + ctab.name.as_str();
