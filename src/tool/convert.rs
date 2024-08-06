@@ -16,9 +16,16 @@ use crate::{
 
 pub fn convert_alilog_csv(csv_path: &str, filter_db: String) -> Result<PathBuf, anyhow::Error> {
     println!("convert_alilog_csv: {}", csv_path);
-    let file: File = File::open(csv_path)?;
-    let current = watch_progress("Convert".to_string(), count_lines(csv_path));
-    let out_path = PathBuf::from(format!("oplogs.{}.op", chrono::Local::now().timestamp()));
+    let csv_path = PathBuf::from(csv_path);
+    let file: File = File::open(csv_path.clone())?;
+    let current = watch_progress(
+        "Convert".to_string(),
+        count_lines(csv_path.to_str().unwrap()),
+    );
+    let out_path = PathBuf::from(format!(
+        "{}.op",
+        csv_path.file_stem().unwrap().to_str().unwrap()
+    ));
     let w_file = File::create(out_path.clone())?;
     let writer = Arc::new(Mutex::new(std::io::BufWriter::new(w_file)));
 
