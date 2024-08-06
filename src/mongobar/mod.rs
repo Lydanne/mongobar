@@ -1168,6 +1168,20 @@ impl Mongobar {
         )
         .init();
 
+        if self.op_file_resume.exists() {
+            if self.config.rebuild.unwrap_or_default() {
+                tokio::fs::remove_file(self.op_file_resume.clone()).await?;
+            } else {
+                let logs = self.indicator.take("logs").unwrap();
+                logs.push(format!(
+                    "OPResume [{}] [{}] file exists",
+                    chrono::Local::now().timestamp(),
+                    self.op_file_resume.to_str().unwrap()
+                ));
+                return Ok(());
+            }
+        }
+
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)

@@ -32,6 +32,9 @@ pub enum Commands {
     /// 压测完成后恢复命令
     OPResume(OPReplay),
 
+    /// 构建压测恢复的 oplogs
+    OPBuildResume(OPReplay),
+
     /// 导出相关的数据到 op 文件内
     OPExport(OPReplay),
 

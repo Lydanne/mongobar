@@ -154,6 +154,26 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(())
             });
         }
+        Commands::OPBuildResume(args) => {
+            exec_tokio(move || async move {
+                let indic = indicator::Indicator::new().init(ind_keys(), args.target.clone());
+                print_indicator(&indic);
+
+                mongobar::Mongobar::new(&args.target)
+                    .merge_config_rebuild(args.rebuild)
+                    .merge_config_uri(args.uri)
+                    .init()
+                    .op_resume()
+                    .await?;
+
+                println!(
+                    "OPBuildResume done output to `./mongobar/{}/resume.op`.",
+                    args.target
+                );
+
+                Ok(())
+            });
+        }
         Commands::UI(mut ui) => {
             target_parse(&mut ui.target, ui.update);
             let _ = ui::boot(ui);
