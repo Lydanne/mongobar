@@ -1,4 +1,5 @@
 use hashbrown::HashMap;
+use serde_json::Value;
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
@@ -99,7 +100,7 @@ impl Metric {
         self.logs.lock().unwrap().clone()
     }
 
-    pub fn map_add(&self, key: &str, value: usize) {
+    pub fn map_add(&self, key: &str, value: usize, eg: &Value) {
         let mut map_count = self.map_count.lock().unwrap();
         if let Some(v) = map_count.get_mut(key) {
             v.count.fetch_add(1, self.ordering);
@@ -112,6 +113,7 @@ impl Metric {
                     count: AtomicUsize::new(1),
                     sum: AtomicUsize::new(value),
                     middle: StreamingMedian::new(),
+                    egs: vec![serde_json::to_string(eg).unwrap()],
                 },
             );
         }
@@ -138,6 +140,7 @@ pub struct Count {
     pub count: AtomicUsize,
     pub sum: AtomicUsize,
     pub middle: StreamingMedian,
+    pub egs: Vec<String>,
 }
 
 impl Clone for Count {
@@ -146,6 +149,7 @@ impl Clone for Count {
             count: AtomicUsize::new(self.count.load(std::sync::atomic::Ordering::Relaxed)),
             sum: AtomicUsize::new(self.sum.load(std::sync::atomic::Ordering::Relaxed)),
             middle: self.middle.clone(),
+            egs: self.egs.clone(),
         }
     }
 }

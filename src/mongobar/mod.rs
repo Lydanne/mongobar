@@ -856,7 +856,11 @@ impl Mongobar {
                             op_row::Op::None => (),
                         }
 
-                        query_stats.map_add(&row.key, query_start.elapsed().as_millis() as usize);
+                        query_stats.map_add(
+                            &row.key,
+                            query_start.elapsed().as_millis() as usize,
+                            &row.cmd,
+                        );
                         querying.decrement();
                         row_index += 1;
                     }
@@ -1705,7 +1709,7 @@ impl Mongobar {
             let _ = fs::remove_file(&csv_file);
         }
         let mut wtr = csv::Writer::from_path(&csv_file).unwrap();
-        wtr.write_record(&["Key", "AvgCost(ms)", "MidCost(ms)", "Count"])
+        wtr.write_record(&["Key", "AvgCost(ms)", "MidCost(ms)", "Count", "Eg"])
             .unwrap();
         for k in m.map_keys().iter() {
             let v = m.map_get(k).unwrap();
@@ -1718,6 +1722,7 @@ impl Mongobar {
                 ),
                 &format!("{:.2}", v.middle.median()),
                 &format!("{}", v.count.load(std::sync::atomic::Ordering::Relaxed)),
+                &format!("{}", v.egs.join("|")),
             ])
             .unwrap();
         }
