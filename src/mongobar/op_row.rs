@@ -1,6 +1,5 @@
 use mongodb::bson::Document;
 
-use rayon::vec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

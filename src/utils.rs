@@ -7,7 +7,7 @@ pub fn count_lines(file_path: &str) -> usize {
     reader.lines().count()
 }
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha3::digest::{ExtendableOutput, Update, XofReader};

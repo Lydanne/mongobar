@@ -1,9 +1,7 @@
 use std::{
-    fmt::format,
     fs::{self},
     path::PathBuf,
     sync::Arc,
-    time::Duration,
     vec,
 };
 

@@ -24,7 +24,6 @@ use ratatui::{
         Axis, Block, Borders, Chart, Clear, Dataset, Gauge, List, ListItem, Paragraph, Widget, Wrap,
     },
 };
-use tokio::runtime::Builder;
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 use crate::{
@@ -228,7 +227,7 @@ pub fn boot(ui: UI) -> Result<(), Box<dyn Error>> {
 
     // create app and run it
     let tick_rate = Duration::from_millis(100);
-    let mut app = App::new(ui);
+    let app = App::new(ui);
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal

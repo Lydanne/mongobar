@@ -1,6 +1,6 @@
-use std::io::{stdout, BufRead, Write};
+use std::io::BufRead;
 
-use crate::{mongobar::op_row::OpRow, utils::to_sha3_8};
+use crate::mongobar::op_row::OpRow;
 
 pub fn reg_filter_line(target: &str, filter: &str) -> usize {
     let mut line_number = 0;

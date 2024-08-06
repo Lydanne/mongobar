@@ -7,12 +7,10 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex, RwLock};
 
 use bson::Document;
-use ratatui::buffer;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::utils::to_sha3_8;
 
 use super::op_row::{self, OpRow};
 

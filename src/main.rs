@@ -1,7 +1,7 @@
 use std::{env, path::PathBuf};
 
 use bson::DateTime;
-use clap::{builder::Str, Parser};
+use clap::Parser;
 use commands::{Cli, Commands, Tool};
 use futures::Future;
 use indicator::print_indicator;
