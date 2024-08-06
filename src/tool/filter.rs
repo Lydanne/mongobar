@@ -24,6 +24,9 @@ pub fn mode_filter_line(target: &str, mode: &str) -> usize {
     let reader = std::io::BufReader::new(file);
     for line in reader.lines() {
         let line = line.unwrap();
+        if line.trim().is_empty() {
+            continue;
+        }
         let row = serde_json::from_str::<OpRow>(&line).unwrap();
         if row.build_key() == mode {
             println!("{}", line);
