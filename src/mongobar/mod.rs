@@ -557,18 +557,30 @@ impl Mongobar {
                                 // println!("before cmd {:?}", cmd);
 
                                 let start = Instant::now();
-                                let res = db.run_cursor_command(row.args).await;
+                                if row.cmd.get("count").is_some() {
+                                    let res = db.run_command(row.args).await;
+                                    if let Err(e) = &res {
+                                        logs.push(format!(
+                                            "OPExec [{}] [{}] err {}",
+                                            chrono::Local::now().timestamp(),
+                                            row.id,
+                                            e
+                                        ));
+                                    }
+                                } else {
+                                    let res = db.run_cursor_command(row.args).await;
+                                    if let Err(e) = &res {
+                                        logs.push(format!(
+                                            "OPExec [{}] [{}] err {}",
+                                            chrono::Local::now().timestamp(),
+                                            row.id,
+                                            e
+                                        ));
+                                    }
+                                }
+                                query_count.increment();
                                 let end = start.elapsed();
                                 cost_ms.add(end.as_millis() as usize);
-                                query_count.increment();
-                                if let Err(e) = &res {
-                                    logs.push(format!(
-                                        "OPExec [{}] [{}] err {}",
-                                        chrono::Local::now().timestamp(),
-                                        row.id,
-                                        e
-                                    ));
-                                }
                                 // if let Ok(mut cursor) = res {
                                 //     let mut sum = 0;
                                 //     while cursor.advance().await.unwrap() {

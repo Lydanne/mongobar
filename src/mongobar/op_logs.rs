@@ -11,7 +11,6 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 
-
 use super::op_row::{self, OpRow};
 
 static BUFF_SIZE: usize = 10000;
@@ -359,7 +358,7 @@ pub fn reverse_file(file_path: &str) -> std::io::Result<()> {
 
 pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
     match &item.op {
-        op_row::Op::Find | op_row::Op::Count => {
+        op_row::Op::Find | op_row::Op::Count | op_row::Op::Command => {
             if let Value::Object(ref mut cmd) = item.cmd {
                 cmd.remove("lsid");
                 cmd.remove("$clusterTime");
