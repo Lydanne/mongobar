@@ -155,4 +155,4 @@ For recovery.
 
 ## About
 
-@xgj/wmc
+@xgj/lyda
