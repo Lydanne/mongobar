@@ -1,19 +1,21 @@
 use std::{
+    ops,
     sync::Arc,
     thread::{self, JoinHandle},
 };
 
 use bson::{doc, Document};
+use futures::StreamExt;
 use tokio::runtime::Builder;
 
-use mongodb::Client;
+use mongodb::{action::Aggregate, Client};
 
 use crate::{
     indicator::{self, Indicator},
     signal::Signal,
 };
 
-pub fn mongo_stats(
+pub fn run_stats(
     uri: String,
     db: String,
     signal: Arc<Signal>,
@@ -61,6 +63,53 @@ pub fn mongo_stats(
         });
     });
     (handle, indicator)
+}
+
+pub fn index_status(uri: String, db: String, coll: String) -> JoinHandle<()> {
+    let handle = thread::spawn(|| {
+        let rt = Builder::new_current_thread().enable_all().build().unwrap();
+        rt.block_on(async move {
+            let client = Client::with_uri_str(uri).await.unwrap();
+
+            let db = client.database(&db);
+
+            let index_stats: Result<mongodb::Cursor<bson::Document>, mongodb::error::Error> = db
+                .collection::<bson::Document>(&coll)
+                .aggregate(vec![doc! {
+                    "$indexStats": {}
+                }])
+                .await;
+
+            match index_stats {
+                Ok(cursor) => {
+                    // Iterate over the results of the cursor
+                    let mut index_stats = cursor;
+                    while let Some(Ok(doc)) = index_stats.next().await {
+                        let name = doc.get_str("name").unwrap();
+                        let accesses = doc.get_document("accesses").unwrap();
+                        let ops = accesses.get_i64("ops").unwrap();
+                        // let since = accesses.get_datetime("since").unwrap();
+
+                        println!(
+                            "Index: name({}) ops({})",
+                            name,
+                            ops,
+                            // since
+                            //     .try_to_rfc3339_string()
+                            //     .unwrap_or_else(|_| String::new()),
+                        );
+                    }
+                }
+                Err(err) => {
+                    // Handle the error here
+                    panic!("Failed to retrieve index stats: {}", err);
+                }
+            };
+
+            ()
+        });
+    });
+    handle
 }
 
 pub fn print_indicator(indicator: &Indicator) {

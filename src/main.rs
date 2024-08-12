@@ -234,13 +234,28 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             let mongobar = mongobar::Mongobar::new("stats")
                 .merge_config_uri(args.uri)
                 .merge_config_db(args.db);
-            let ind = mongo_stats::mongo_stats(
+            let ind = mongo_stats::run_stats(
                 mongobar.config.uri,
                 mongobar.config.db,
                 Arc::new(Signal::new()),
             );
             mongo_stats::print_indicator(&ind.1);
             let _ = ind.0.join();
+        }
+        Commands::IndexStatus(args) => {
+            let mongobar = mongobar::Mongobar::new("stats")
+                .merge_config_uri(args.uri)
+                .merge_config_db(args.db);
+            if args.coll.is_none() {
+                panic!("Please specify the --coll name.");
+            }
+
+            let ind = mongo_stats::index_status(
+                mongobar.config.uri,
+                mongobar.config.db,
+                args.coll.unwrap(),
+            );
+            let _ = ind.join();
         }
     }
 
