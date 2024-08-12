@@ -1,4 +1,4 @@
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, sync::Arc};
 
 use bson::DateTime;
 use clap::Parser;
@@ -6,10 +6,12 @@ use commands::{Cli, Commands, Tool};
 use futures::Future;
 use indicator::print_indicator;
 use mongobar::Mongobar;
+use signal::Signal;
 use tokio::runtime::Builder;
 
 mod commands;
 mod indicator;
+mod mongo_stats;
 mod mongobar;
 mod signal;
 mod tool;
@@ -227,6 +229,11 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
         Commands::SaveAs(args) => {
             let m = mongobar::Mongobar::new(&args.target);
             m.save_as(&args.outdir, args.force).unwrap();
+        }
+        Commands::Stats(args) => {
+            let ind = mongo_stats::mongo_stats(args.uri, args.db, Arc::new(Signal::new()));
+            mongo_stats::print_indicator(&ind.1);
+            let _ = ind.0.join();
         }
     }
 

@@ -44,6 +44,9 @@ pub enum Commands {
     /// 另存为压力测试的 op 文件
     SaveAs(SaveAs),
 
+    /// 另存为压力测试的 op 文件
+    Stats(Stats),
+
     /// 一些高效的辅助命令，包括文件的的行正则筛选、分析阿里云的审计日志、转换阿里云的审计日志为压测 oplogs.op等
     #[clap(subcommand)]
     Tool(Tool),
@@ -72,6 +75,15 @@ pub struct OPRecord {
     /// force to clean
     #[clap(short, long)]
     pub force: bool,
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct Stats {
+    /// 目标数据库连接
+    pub uri: String,
+
+    /// 目标数据库 db
+    pub db: String,
 }
 
 #[derive(clap::Parser, Debug, Clone)]

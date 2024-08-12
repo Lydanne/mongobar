@@ -140,9 +140,6 @@ impl App {
         if self.signal.get() != 0 {
             return;
         }
-        // let current_at = chrono::Local::now().timestamp() as f64;
-        // let start_at = self.start_at.get() as f64;
-        // let dur = current_at - start_at;
         {
             let query_count = self.indicator.take("query_count").unwrap().get() as f64;
             if tick_index == 0 {
@@ -228,6 +225,7 @@ pub fn boot(ui: UI) -> Result<(), Box<dyn Error>> {
     // create app and run it
     let tick_rate = Duration::from_millis(100);
     let app = App::new(ui);
+
     let res = run_app(&mut terminal, app, tick_rate);
 
     // restore terminal
