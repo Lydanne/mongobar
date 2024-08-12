@@ -80,10 +80,10 @@ pub struct OPRecord {
 #[derive(clap::Parser, Debug, Clone)]
 pub struct Stats {
     /// 目标数据库连接
-    pub uri: String,
+    pub uri: Option<String>,
 
     /// 目标数据库 db
-    pub db: String,
+    pub db: Option<String>,
 }
 
 #[derive(clap::Parser, Debug, Clone)]

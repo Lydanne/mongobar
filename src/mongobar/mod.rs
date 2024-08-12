@@ -129,6 +129,13 @@ impl Mongobar {
         self
     }
 
+    pub fn merge_config_db(mut self, db: Option<String>) -> Self {
+        if let Some(db) = db {
+            self.config.db = db;
+        }
+        self
+    }
+
     pub fn merge_config_loop_count(mut self, loop_count: Option<usize>) -> Self {
         if let Some(loop_count) = loop_count {
             self.config.loop_count = loop_count;

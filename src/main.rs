@@ -231,7 +231,14 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             m.save_as(&args.outdir, args.force).unwrap();
         }
         Commands::Stats(args) => {
-            let ind = mongo_stats::mongo_stats(args.uri, args.db, Arc::new(Signal::new()));
+            let mongobar = mongobar::Mongobar::new("stats")
+                .merge_config_uri(args.uri)
+                .merge_config_db(args.db);
+            let ind = mongo_stats::mongo_stats(
+                mongobar.config.uri,
+                mongobar.config.db,
+                Arc::new(Signal::new()),
+            );
             mongo_stats::print_indicator(&ind.1);
             let _ = ind.0.join();
         }
