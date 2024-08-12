@@ -1,6 +1,6 @@
 [package]
 name = "mongobar"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["WumaCoder <wumacoder@gmail.com>"]
 description = "This is a stress testing tool for mongo."
 edition = "2021"
