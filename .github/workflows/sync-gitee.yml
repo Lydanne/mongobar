@@ -10,7 +10,7 @@ jobs:
       - name: sync to gitee
         uses: Yikun/hub-mirror-action@master
         with:
-          src: github/WumaCoder
+          src: github/Lydanne
           dst: gitee/WumaCoder
           dst_key: ${{ secrets.GITEE_PRIVATE_KEY }}
           dst_token: ${{ secrets.GITEE_TOKEN }}
