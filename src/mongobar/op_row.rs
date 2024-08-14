@@ -35,15 +35,12 @@ impl OpRow {
             }
             Op::Update => {
                 if let Some(updates) = self.cmd.get("updates") {
+                    if updates.as_array().is_none() {
+                        return "".to_string();
+                    }
                     let mut keys = vec![];
                     let mut ukeys = vec![];
-                    for update in updates.as_array().expect(
-                        format!(
-                            "OpRow [{}] updates should be array, but got: {:?}",
-                            self.id, updates
-                        )
-                        .as_str(),
-                    ) {
+                    for update in updates.as_array().unwrap() {
                         keys.append(&mut deep_build_key(&update.get("q").unwrap()));
                         ukeys.append(&mut deep_build_key(&update.get("u").unwrap()));
                     }
