@@ -37,7 +37,13 @@ impl OpRow {
                 if let Some(updates) = self.cmd.get("updates") {
                     let mut keys = vec![];
                     let mut ukeys = vec![];
-                    for update in updates.as_array().unwrap() {
+                    for update in updates.as_array().expect(
+                        format!(
+                            "OpRow [{}] updates should be array, but got: {:?}",
+                            self.id, updates
+                        )
+                        .as_str(),
+                    ) {
                         keys.append(&mut deep_build_key(&update.get("q").unwrap()));
                         ukeys.append(&mut deep_build_key(&update.get("u").unwrap()));
                     }
