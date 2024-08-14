@@ -36,7 +36,7 @@ impl OpRow {
             Op::Update => {
                 if let Some(updates) = self.cmd.get("updates") {
                     if updates.as_array().is_none() {
-                        return "".to_string();
+                        return "None".to_string();
                     }
                     let mut keys = vec![];
                     let mut ukeys = vec![];

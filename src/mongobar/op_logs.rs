@@ -390,6 +390,9 @@ pub fn trans_value_to_doc(mut item: OpRow, ignore_field: &[String]) -> OpRow {
     }
 
     item.key = item.build_key();
+    if item.key == "None" {
+        item.op = op_row::Op::None;
+    }
     // item.hash = to_sha3_8(&item.key);
     item
 }
