@@ -257,6 +257,11 @@ fn boot() -> Result<(), Box<dyn std::error::Error>> {
             );
             let _ = ind.join();
         }
+        Commands::IndexMigrate(args) => {
+            if let Err(err) = mongo_stats::index_migrate(args).join() {
+                eprintln!("Error occurred during index migration: {:?}", err);
+            }
+        }
     }
 
     Ok(())

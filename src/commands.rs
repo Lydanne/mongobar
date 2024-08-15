@@ -50,6 +50,9 @@ pub enum Commands {
     /// 查看索引被使用状态
     IndexStatus(Stats),
 
+    /// diff 迁移索引，全程 background
+    IndexMigrate(IndexMigrate),
+
     /// 一些高效的辅助命令，包括文件的的行正则筛选、分析阿里云的审计日志、转换阿里云的审计日志为压测 oplogs.op等
     #[clap(subcommand)]
     Tool(Tool),
@@ -68,6 +71,15 @@ pub enum Tool {
 
     /// 通过正则过滤文件的行
     Filter(Filter),
+}
+
+#[derive(clap::Parser, Debug, Clone)]
+pub struct IndexMigrate {
+    pub index_path: String,
+
+    /// 目标数据库 db
+    #[clap(short, long)]
+    pub uri: String,
 }
 
 #[derive(clap::Parser, Debug, Clone)]
