@@ -2,11 +2,12 @@ use std::{
     fs::{self},
     path::PathBuf,
     sync::Arc,
-    vec,
+    thread, vec,
 };
 
 use bson::{doc, DateTime};
 
+use hashbrown::{HashMap, HashSet};
 use mongodb::{bson::Document, options::ClientOptions, Client, Collection, Cursor};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -464,6 +465,8 @@ impl Mongobar {
         let logs = self.indicator.take("logs").unwrap();
         let query_stats = self.indicator.take("query_stats").unwrap();
         let signal = Arc::clone(&self.signal);
+        let stack: HashMap<String, Instant> = HashMap::new();
+        let stack = Arc::new(std::sync::Mutex::new(stack));
 
         self.indicator
             .take("thread_count")
@@ -473,6 +476,39 @@ impl Mongobar {
         let op_logs = Arc::new(
             op_logs::OpLogs::new(exec_file, mode.clone(), self.ignore_field.clone()).init(),
         );
+
+        thread::spawn({
+            let stack = Arc::clone(&stack);
+            let logs = Arc::clone(&logs);
+            let signal = Arc::clone(&signal);
+            move || loop {
+                if signal.get() == 0 {
+                    thread::sleep(tokio::time::Duration::from_secs(5));
+                    continue;
+                }
+                let mut stack = stack.lock().unwrap();
+                let mut keys = vec![];
+                for (k, v) in stack.iter() {
+                    if v.elapsed().as_secs() > 10 {
+                        keys.push(k.clone());
+                    }
+                }
+                for k in keys {
+                    logs.push(format!(
+                        "OPExec [{}] [{}] timeout",
+                        chrono::Local::now().timestamp(),
+                        k
+                    ));
+                    stack.remove(&k);
+                }
+                logs.push(format!(
+                    "OPExec [{}] timeout check ok",
+                    chrono::Local::now().timestamp(),
+                ));
+                drop(stack);
+                break;
+            }
+        });
 
         let mut created_thread_count = 0;
         loop {
@@ -508,6 +544,7 @@ impl Mongobar {
             let dyn_cc_limit = dyn_cc_limit.clone();
             let query_qps = query_qps.clone();
             let querying = querying.clone();
+            let stack = stack.clone();
             let thread_count_num = thread_count;
             let mode = mode.clone();
             let op_run_mode = op_run_mode.clone();
@@ -556,6 +593,9 @@ impl Mongobar {
                         // }
                         progress.increment();
                         querying.increment();
+                        {
+                            stack.lock().unwrap().insert(row.id.clone(), Instant::now());
+                        }
                         let query_start = Instant::now();
                         match &row.op {
                             op_row::Op::Find | &op_row::Op::Command => {
@@ -880,6 +920,9 @@ impl Mongobar {
                             &row.cmd,
                         );
                         querying.decrement();
+                        {
+                            stack.lock().unwrap().remove(&row.id);
+                        }
                         row_index += 1;
                     }
                 }
